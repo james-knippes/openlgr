@@ -1284,7 +1284,7 @@ HACKY_IMPORT_END()
 HACKY_IMPORT_BEGIN(LoadIconA)
   hacky_printf("hInstance 0x%" PRIX32 "\n", stack[1]);
   hacky_printf("lpIconName 0x%" PRIX32 " ('%s')\n", stack[2], (char*)Memory(stack[2]));
-  eax = 0; // NULL, pretend we failed
+  eax = 4242; // HANDLE
   esp += 2 * 4;
 HACKY_IMPORT_END()
 
@@ -3241,6 +3241,293 @@ HACKY_COM_END()
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Stuff for LEGO Racers
+HACKY_IMPORT_BEGIN(__set_app_type)
+  hacky_printf("at 0x%" PRIX32 "\n", stack[1]);
+  eax = 0; // void
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+
+HACKY_IMPORT_BEGIN(__p__fmode)
+  eax = Allocate(100 * 1024); // yolo
+  esp += 0 * 4;
+HACKY_IMPORT_END()
+
+
+HACKY_IMPORT_BEGIN(__p__commode)
+  eax = Allocate(100 * 1024); // yolo
+  esp += 0 * 4;
+HACKY_IMPORT_END()
+
+
+HACKY_IMPORT_BEGIN(_controlfp)
+  hacky_printf("new 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("mask 0x%" PRIX32 "\n", stack[2]);
+  eax = 0; // FIXME: figure out FPCW
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(_initterm)
+  hacky_printf("a 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("b 0x%" PRIX32 "\n", stack[2]);
+  eax = 0; // void???!?!
+  esp += 0 * 4; // cdecl
+  
+  esp -= 4;
+  *(Address*)Memory(esp) = returnAddress;
+  esp -= 4;
+  *(Address*)Memory(esp) = clearEax;
+  
+  Address p = stack[2]+4; // YOLO part 1
+  do {
+    p -= 4; // YOLO part 2
+    Address f = *(Address*)Memory(p);
+    if (f == 0) {
+      continue;
+    }
+    esp -= 4;
+    *(Address*)Memory(esp) = f;
+  } while (p != stack[1]);
+  
+  eip = clearEax; // dirty hack to jump to first f
+HACKY_IMPORT_END()
+
+typedef struct {
+  int32_t newmode;
+} _startupinfo;
+
+HACKY_IMPORT_BEGIN(__getmainargs)
+  hacky_printf("argc 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("argv 0x%" PRIX32 "\n", stack[2]);
+  hacky_printf("env 0x%" PRIX32 "\n", stack[3]);
+  hacky_printf("DoWildCard 0x%" PRIX32 "\n", stack[4]);
+  hacky_printf("StartInfo 0x%" PRIX32 "\n", stack[5]);
+  
+  *(int32_t*)Memory(stack[1]) = 1;
+  
+  Address argv_p = Allocate(1 * 4);
+  Address* argv = Memory(argv_p);
+  argv[0] = Allocate(128);
+  strcpy(Memory(argv[0]),"LEGORacers.exe");
+  *(Address*)Memory(stack[2]) = argv_p;
+  
+  Address env_p = Allocate(1 * 4);
+  Address* env = Memory(env_p);
+  env[0] = 0;
+  *(Address*)Memory(stack[3]) = env_p;
+  
+  // igone wildcard
+  
+  _startupinfo* StartInfo = Memory(stack[5]);
+  printf("StartInfo was %d\n", StartInfo->newmode);
+  StartInfo->newmode = 0;
+  
+  eax = 0; // return success
+  esp += 0 * 4; // cdecl?!!?
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(srand)
+  hacky_printf("seed %" PRIu32 "\n", stack[1]);
+  srand(stack[1]);
+  eax = 0; // void
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(strncpy)
+  hacky_printf("strDest 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("strSource 0x%" PRIX32 " (%s)\n", stack[2], Memory(stack[2]));
+  hacky_printf("count %" PRIu32 "\n", stack[3]);
+  strncpy(Memory(stack[1]),Memory(stack[2]),stack[3]);
+  eax = stack[1]; // 
+  esp += 0 * 4; // cdecl???
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(_onexit)
+  hacky_printf("_onexit_t 0x%" PRIX32 "\n", stack[1]);
+  eax = stack[1]; // function_ptr to signal success
+  esp += 0 * 4; // cdecl ??!?!?
+HACKY_IMPORT_END()
+
+// ??2@YAPAXI@Z
+HACKY_IMPORT_BEGIN(hacky_operater_new)
+  hacky_printf("count %" PRIu32 "\n", stack[1]);
+  eax = Allocate(stack[1]); // function_ptr to signal success
+  esp += 0 * 4; // cdecl ??!?!?
+HACKY_IMPORT_END()
+
+
+HACKY_IMPORT_BEGIN(CreateMutexA)
+/*HANDLE WINAPI CreateMutex(
+  _In_opt_ LPSECURITY_ATTRIBUTES lpMutexAttributes,
+  _In_     BOOL                  bInitialOwner,
+  _In_opt_ LPCTSTR               lpName
+);*/
+  hacky_printf("lpMutexAttributes 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("bInitialOwner 0x%" PRIX32 "\n", stack[2]);
+  hacky_printf("lpName 0x%" PRIX32 " (%s)\n", stack[3], Memory(stack[3]));
+  eax = 133742; // HANDLE
+  esp += 3 * 4;
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(sprintf)
+  hacky_printf("buffer 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("format 0x%" PRIX32 " (%s)\n", stack[2], Memory(stack[2]));
+  assert(false);
+  eax = 0 ;// function_ptr to signal success
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(strchr)
+  hacky_printf("string 0x%" PRIX32 " (%s)\n", stack[1], Memory(stack[1]));
+  hacky_printf("char 0x%" PRIX32 " (%c)\n", stack[2], stack[2]);
+  char* s = Memory(stack[1]);
+  char* r = strchr(s, stack[2]);
+  if (r == NULL) {
+    eax = 0;
+  } else {
+    eax = stack[1] + (r - s);
+  }
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(isalpha)
+  hacky_printf("c 0x%" PRIX32 " (%c)\n", stack[1], stack[1]);
+  eax = isalpha(stack[1]);
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(strrchr)
+  hacky_printf("string 0x%" PRIX32 " (%s)\n", stack[1], Memory(stack[1]));
+  hacky_printf("char 0x%" PRIX32 " (%c)\n", stack[2], stack[2]);
+  char* s = Memory(stack[1]);
+  char* r = strrchr(s, stack[2]);
+  if (r == NULL) {
+    eax = 0;
+  } else {
+    eax = stack[1] + (r - s);
+  }
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(toupper)
+  hacky_printf("c 0x%" PRIX32 " (%c)\n", stack[1], stack[1]);
+  eax = toupper(stack[1]);
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+// file handle translation table
+int posix_fh[5000];
+int cur_posix_fh = 100;
+
+HACKY_IMPORT_BEGIN(_open)
+  hacky_printf("filename 0x%" PRIX32 " (%s)\n", stack[1], Memory(stack[1]));
+  hacky_printf("oflag 0x%" PRIX32 "\n", stack[2]);
+  assert(stack[2] == 0x8000); // FIXME
+  int f = open(Memory(stack[1]),O_RDONLY);
+  if (f == -1) {
+    eax = -1;
+  } else {
+    posix_fh[cur_posix_fh] = f;
+    eax = cur_posix_fh++;
+  }
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(_lseek)
+  hacky_printf("fd 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("offset 0x%" PRIX32 "\n", stack[2]);
+  hacky_printf("origin 0x%" PRIX32 "\n", stack[3]);
+  int w;
+  if (stack[3] == 0) {
+    w = SEEK_SET;
+  } else if (stack[3] == 1) {
+    w = SEEK_CUR;
+  } else if (stack[3] == 2) {
+    w = SEEK_END;
+  } else {
+      assert(false);
+  }
+  eax = lseek(posix_fh[stack[1]], (int32_t)stack[2], w);
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(_tell)
+  hacky_printf("handle 0x%" PRIX32 "\n", stack[1]);
+  eax = lseek(posix_fh[stack[1]], 0, SEEK_CUR);
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(_read)
+  hacky_printf("fd 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("buffer 0x%" PRIX32 "\n", stack[2]);
+  hacky_printf("count 0x%" PRIX32 "\n", stack[3]);
+  eax = read(posix_fh[stack[1]], Memory(stack[2]), stack[3]);
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+//??3@YAXPAX@Z
+HACKY_IMPORT_BEGIN(hacky_operater_delete)
+  hacky_printf("p %" PRIu32 "\n", stack[1]);
+  Free(stack[1]); 
+  eax = 0; // void
+  esp += 0 * 4; // cdecl ??!?!?
+HACKY_IMPORT_END()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 static void UcMallocHook(void* uc, uint64_t address, uint32_t size, void* user_data) {
   int eip;
   uc_reg_read(uc, UC_X86_REG_EIP, &eip);
@@ -3507,7 +3794,31 @@ Exe* LoadExe(const char* path) {
           printf("  0x%" PRIX32 ": 0x%" PRIX16 " '%s' ..", thunkAddress, importByName->hint, importByName->name);
           label = importByName->name;
         }
-
+        
+        
+        
+        
+        // funtion alias patch set
+        if (!strcmp("??2@YAPAXI@Z", label)) {
+            label = "hacky_operater_new";
+        } else if (!strcmp("??3@YAXPAX@Z", label)) {
+            label = "hacky_operater_delete";
+        }
+        
+        
+        
+        
+        
+        if (!strcmp("_acmdln", label)) {
+          Address x = Allocate(4);
+          Address dataAddress = Allocate(4);
+          Address s = Allocate(128);
+          strcpy(Memory(s),"LEGORacers.exe");
+          *(Address*)Memory(x) = s;
+          *(Address*)Memory(dataAddress) = x;
+          *symbolAddress = x;
+          printf("patched to 0x%08" PRIX32 "\n", dataAddress);
+        } else
         //FIXME: This is a hack.. these calls were WAY too slow because UC is really bad at switching contexts
 #if 1
         if (!strcmp("EnterCriticalSection", label) || !strcmp("LeaveCriticalSection", label)) {

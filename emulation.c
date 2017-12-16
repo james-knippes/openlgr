@@ -163,7 +163,12 @@ static void UcTraceHook(void* uc, uint64_t address, uint32_t size, void* user_da
   uc_reg_read(uc, UC_X86_REG_EAX, &eax);
   uc_reg_read(uc, UC_X86_REG_ESI, &esi);
   static uint32_t id = 0;
-  printf("%7" PRIu32 " TRACE Emulation at 0x%X (ESP: 0x%X); eax = 0x%08" PRIX32 " esi = 0x%08" PRIX32 " (TS: %" PRIu64 ")\n", id++, eip, esp, eax, esi, SDL_GetTicks());
+  printf("%7" PRIu32 " TRACE Emulation at \x1b[31m 0x%X \x1b[0m (ESP: 0x%X); eax = 0x%08" PRIX32 " esi = 0x%08" PRIX32 " (TS: %" PRIu64 ")\n", id++, eip, esp, eax, esi, SDL_GetTicks());
+  printf("      ");
+  for(int i = 0; i < 8; i++) {
+    printf("  S[%d]=%X", i, *(uint32_t*)Memory(esp + i * 4));
+  }
+  printf("\n");
 }
 
 void MapMemory(void* memory, uint32_t address, uint32_t size, bool read, bool write, bool execute) {
