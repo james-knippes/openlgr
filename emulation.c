@@ -16,6 +16,7 @@
 #include "exe.h"
 
 //FIXME: These are hacks (register when mapping instead!)!
+extern Exe* dll;
 extern Exe* exe;
 uint8_t* stack = NULL;
 uint8_t* heap = NULL;
@@ -29,7 +30,7 @@ static uint32_t tlsSize = 0x1000;
 static uint32_t stackAddress = 0xC0000000; // FIXME: Search free region instead..?
 static uint32_t stackSize = 16 * 1024 * 1024; // 4 MiB stack should be PLENTY
 
-#define HEAP_ADDRESS 0x0D000000
+#define HEAP_ADDRESS 0x20000000
 static uint32_t heapAddress = HEAP_ADDRESS;
 static uint32_t heapSize = 1024 * 1024 * 1024; // 1024 MiB
 
@@ -215,7 +216,20 @@ void* Memory(uint32_t address) {
     return &stack[address - stackAddress];
   }
 
-  if (address >= exe->peHeader.imageBase) {
+  // Check the DLL first, as it's at the higher memory address
+  if (dll && address >= dll->peHeader.imageBase) {
+    address -= dll->peHeader.imageBase;
+    for(unsigned int sectionIndex = 0; sectionIndex < dll->coffHeader.numberOfSections; sectionIndex++) {
+      PeSection* section = &dll->sections[sectionIndex];
+      if ((address >= section->virtualAddress) && (address < (section->virtualAddress + section->virtualSize))) {
+        assert(dll->mappedSections[sectionIndex] != NULL);
+        uint32_t offset = address - section->virtualAddress;
+        return &dll->mappedSections[sectionIndex][offset];
+      }
+    }
+  }
+
+  if (exe && address >= exe->peHeader.imageBase) {
     address -= exe->peHeader.imageBase;
     for(unsigned int sectionIndex = 0; sectionIndex < exe->coffHeader.numberOfSections; sectionIndex++) {
       PeSection* section = &exe->sections[sectionIndex];
