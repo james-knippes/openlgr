@@ -127,7 +127,7 @@ Address CreateInterface(const char* name, unsigned int slotCount) {
 
 
 
-
+Exe* dll; //FIXME: This is the biggest hack. I feel this shouldn't be exposed aside from the loader, it also only supports 1 dll
 Exe* exe; //FIXME: This is hack. I feel this shouldn't be exposed aside from the loader
 const char* exeName = "swep1rcr.exe";
 
@@ -640,17 +640,23 @@ HACKY_IMPORT_BEGIN(GetProcAddress)
   hacky_printf("hModule 0x%" PRIX32 "\n", stack[1]);
   hacky_printf("lpProcName 0x%" PRIX32 " ('%s')\n", lpProcName, procName);
 
-  Export* export = LookupExportByName(procName);
-  if (export == NULL) {
-    printf("Export for '%s' could not be found\n", procName);
-    eax = 0;
-    assert(false);
+  if (!strcmp(procName, "GolEntry")) {
+    eax = 0x10000000 + 0x6ff0;
   } else {
-    //FIXME: Use existing address for export
-    Address hltAddress = CreateHlt();
-    AddHltHandler(hltAddress, export->callback, (void*)procName);
-    eax = hltAddress;
-    printf("Providing at 0x%08X\n", hltAddress);
+
+    Export* export = LookupExportByName(procName);
+    if (export == NULL) {
+      printf("Export for '%s' could not be found\n", procName);
+      eax = 0;
+      assert(false);
+    } else {
+      //FIXME: Use existing address for export
+      Address hltAddress = CreateHlt();
+      AddHltHandler(hltAddress, export->callback, (void*)procName);
+      eax = hltAddress;
+      printf("Providing at 0x%08X\n", hltAddress);
+    }
+
   }
 
   esp += 2 * 4;
@@ -1924,6 +1930,23 @@ HACKY_COM_BEGIN(IDirectDraw4, 11)
   esp += 3 * 4;
 HACKY_COM_END()
 
+// IID_IDirectDraw4 -> STDMETHOD(GetDisplayMode)( THIS_ LPDDSURFACEDESC2) PURE; //12
+HACKY_COM_BEGIN(IDirectDraw4, 12)
+  hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("a 0x%" PRIX32 "\n", stack[2]);
+
+  //FIXME: Fill out surface info
+  API(DDSURFACEDESC2)* desc = Memory(stack[2]);
+
+  desc->dwWidth = 640;
+  desc->dwHeight = 480;
+  desc->ddpfPixelFormat.dwRGBBitCount = 8;
+
+  eax = 0; // FIXME: No idea what this expects to return..
+  esp += 2 * 4;
+HACKY_COM_END()
+
+
 // IID_IDirectDraw4 -> STDMETHOD(Initialize)(THIS_ GUID FAR *) PURE; // 18
 HACKY_COM_BEGIN(IDirectDraw4, 18)
   hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
@@ -2957,6 +2980,38 @@ HACKY_COM_END()
 
 // IDirectInputDeviceA
 
+// IDirectInputDeviceA -> STDMETHOD(QueryInterface)				(THIS_ REFIID, LPVOID FAR *) PURE; // 0
+HACKY_COM_BEGIN(IDirectInputDeviceA, 0)
+  hacky_printf("QueryInterface\n");
+  hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("a 0x%" PRIX32 "\n", stack[2]);
+  hacky_printf("b 0x%" PRIX32 "\n", stack[3]);
+
+  const API(IID)* iid = (const API(IID)*)Memory(stack[2]);
+
+  char iidString[1024];
+  sprintf(iidString, "%08" PRIX32 "-%04" PRIX16 "-%04" PRIX16 "-%02" PRIX8 "%02" PRIX8 "-%02" PRIX8 "%02" PRIX8 "%02" PRIX8 "%02" PRIX8 "%02" PRIX8 "%02" PRIX8,
+          iid->Data1, iid->Data2, iid->Data3,
+          iid->Data4[0], iid->Data4[1], iid->Data4[2], iid->Data4[3],
+          iid->Data4[4], iid->Data4[5], iid->Data4[6], iid->Data4[7]);
+  printf("  (read iid: {%s})\n", iidString);
+
+  char name[32];
+  //FIXME: Add more classed / interfaces
+
+#if 1
+  if (!strcmp(iidString, "5944E682-C92E-11CF-BFC7-444553540000")) {
+    // IDirectInputDevice2A
+    *(Address*)Memory(stack[3]) = stack[1]; // Return this, as it's just an extension..
+  } else {
+    assert(false);
+  }
+#endif
+ 
+  eax = 0;
+  esp += 3 * 4;
+HACKY_COM_END()
+
 // IDirectInputDeviceA -> STDMETHOD_(ULONG,Release)       (THIS) PURE; //2
 HACKY_COM_BEGIN(IDirectInputDeviceA, 2)
   hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
@@ -2973,6 +3028,20 @@ HACKY_COM_BEGIN(IDirectInputDeviceA, 3)
 
   eax = 0; // FIXME: No idea what this expects to return..
   esp += 2 * 4;
+HACKY_COM_END()
+
+
+// IDirectInputDeviceA -> STDMETHOD(EnumObjects)(THIS_ LPDIENUMDEVICEOBJECTSCALLBACKA,LPVOID,DWORD) PURE; // 4
+HACKY_COM_BEGIN(IDirectInputDeviceA, 4)
+  hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("a 0x%" PRIX32 "\n", stack[2]);
+  hacky_printf("b 0x%" PRIX32 "\n", stack[3]);
+  hacky_printf("c 0x%" PRIX32 "\n", stack[4]);
+
+  //FIXME: Call some callbacks?
+
+  eax = 0; // FIXME: No idea what this expects to return..
+  esp += 4 * 4;
 HACKY_COM_END()
 
 // IDirectInputDeviceA -> STDMETHOD(SetProperty)(THIS_ REFGUID,LPCDIPROPHEADER) PURE; // 6
@@ -3083,6 +3152,15 @@ HACKY_COM_BEGIN(IDirectInputDeviceA, 13)
   hacky_printf("b 0x%" PRIX32 "\n", stack[3]);
   eax = 0; // HRESULT -> non-negative means success
   esp += 3 * 4;
+HACKY_COM_END()
+
+// IDirectInputDeviceA -> STDMETHOD(GetDeviceInfo)(THIS_ LPDIDEVICEINSTANCEA) PURE;
+HACKY_COM_BEGIN(IDirectInputDeviceA, 15)
+  hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("a 0x%" PRIX32 "\n", stack[2]);
+  //FIXME: Fix returned device info
+  eax = 0; // HRESULT -> non-negative means success
+  esp += 2 * 4;
 HACKY_COM_END()
 
 
@@ -3198,6 +3276,7 @@ HACKY_COM_BEGIN(IDirectInputA, 4)
   esp += 5 * 4;
   // Push a call to the callback onto the stack.. this is some ugly hack..
 
+#if 0
   // Convention is PASCAL
 
   esp -= 4;
@@ -3235,6 +3314,7 @@ HACKY_COM_BEGIN(IDirectInputA, 4)
     printf("  Callback at 0x%" PRIX32 "\n", eip);
     //FIXME: Add a hook which returns 0
   }
+#endif
 HACKY_COM_END()
 
 
@@ -3503,15 +3583,32 @@ HACKY_IMPORT_BEGIN(hacky_operater_delete)
   esp += 0 * 4; // cdecl ??!?!?
 HACKY_IMPORT_END()
 
+HACKY_IMPORT_BEGIN(LoadLibraryA)
+  hacky_printf("lpFileName 0x%" PRIX32 " (%s)\n", stack[1], Memory(stack[1]));
+  assert(!strcmp(Memory(stack[1]), "GolDP.DLL"));
+  eax = 0xD770; // HMODULE
+  esp += 1 * 4;
+HACKY_IMPORT_END()
 
+HACKY_IMPORT_BEGIN(SetWindowLongA)
+  hacky_printf("hWnd 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("nIndex 0x%" PRIX32 "\n", stack[2]);
+  hacky_printf("dwNewLong 0x%" PRIX32 "\n", stack[3]);
+  eax = stack[3]; // LONG, previous value // FIXME: Return actual previous value
+  esp += 3 * 4;
+HACKY_IMPORT_END()
 
+HACKY_IMPORT_BEGIN(ShowCursor)
+  hacky_printf("bShow 0x%" PRIX32 "\n", stack[1]);
+  eax = 1; //FIXME: New display counter
+  esp += 1 * 4;
+HACKY_IMPORT_END()
 
-
-
-
-
-
-
+HACKY_IMPORT_BEGIN(BringWindowToTop)
+  hacky_printf("hWnd 0x%" PRIX32 "\n", stack[1]);
+  eax = 1; // Non-Zero on success
+  esp += 1 * 4;
+HACKY_IMPORT_END()
 
 
 
@@ -3653,8 +3750,14 @@ static void UnknownImport(void* uc, Address address, void* user_data) {
 
 // This loads the exe into memory, even on Linux
 // NOTE: This purposely does not map the file into memory for portability
-Exe* LoadExe(const char* path) {
-  exe = (Exe*)malloc(sizeof(Exe)); //FIXME: Hack to make this global!
+Exe* LoadExe(const char* path, Exe** p_exe) {
+  Exe* exe = (Exe*)malloc(sizeof(Exe)); //FIXME: Hack to make this global!
+
+  // Boostrap, so Memory() will know the exe currently being loaded
+  if (p_exe) {
+    *p_exe = exe;
+  }
+
   memset(exe, 0x00, sizeof(exe));
 
   // Load the exe file and skip the DOS header
@@ -3813,7 +3916,7 @@ Exe* LoadExe(const char* path) {
           Address x = Allocate(4);
           Address dataAddress = Allocate(4);
           Address s = Allocate(128);
-          strcpy(Memory(s),"LEGORacers.exe");
+          strcpy(Memory(s),"LEGORacers.exe -window -novideo");
           *(Address*)Memory(x) = s;
           *(Address*)Memory(dataAddress) = x;
           *symbolAddress = x;
@@ -3907,9 +4010,7 @@ void UnloadExe(Exe* exe) {
   free(exe);
 }
 
-//FIXME: Abstract exe mapping and context creation from emu kickoff
-void RunX86(Exe* exe) {
-
+void MapExe(Exe* exe) {
   // Map the important exe parts into emu memory
   for(unsigned int sectionIndex = 0; sectionIndex < exe->coffHeader.numberOfSections; sectionIndex++) {
     PeSection* section = &exe->sections[sectionIndex];
@@ -3920,7 +4021,10 @@ void RunX86(Exe* exe) {
       MapMemory(mappedSection, base, AlignUp(section->virtualSize, exe->peHeader.sectionAlignment), true, true, true);
     }
   }
+}
 
+//FIXME: Abstract exe mapping and context creation from emu kickoff
+void RunX86(Exe* exe) {
   //FIXME: Schedule a virtual main-thread
   printf("Emulation starting\n");
   CreateEmulatedThread(exe->peHeader.imageBase + exe->peHeader.addressOfEntryPoint);
@@ -3993,11 +4097,21 @@ int main(int argc, char* argv[]) {
   PrintShaderProgramLog(shader1Texture);
   assert(linked);
   glUseProgram(shader1Texture); //FIXME: Hack..
-  printf("-- Loading exe\n");
-  Exe* exe = LoadExe(exeName);
+
+  printf("-- Loading dll and exe\n");
+  const char* dllName = "GolDP.dll";
+  dll = LoadExe(dllName, &dll);
+  if (dll == NULL) {
+    printf("Couldn't load '%s'\n", dllName);
+  }
+  MapExe(dll);
+
+  exe = LoadExe(exeName, &exe);
   if (exe == NULL) {
     printf("Couldn't load '%s'\n", exeName);
   }
+  MapExe(exe);
+
   RelocateExe(exe);
 
   clearEax = Allocate(3);
@@ -4041,5 +4155,6 @@ int main(int argc, char* argv[]) {
   RunX86(exe);
   printf("-- Exiting\n");
   UnloadExe(exe);
+  UnloadExe(dll);
   return 0;
 }
