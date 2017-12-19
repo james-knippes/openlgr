@@ -1,17 +1,18 @@
-[![Gitter chat](https://badges.gitter.im/gitterHQ/gitter.png)](https://gitter.im/OpenSWE1R)       [![Travis build Status](https://travis-ci.org/OpenSWE1R/openswe1r.svg?branch=master)](https://travis-ci.org/OpenSWE1R/openswe1r)       [![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/92s5hpto3kvn8sx3/branch/master?svg=true)](https://ci.appveyor.com/project/JayFoxRox82949/openswe1r/branch/master)
+### OpenLGR
+*An Open-Source port(/loader) of the 1999 Game ["Lego Racers"](https://en.wikipedia.org/wiki/Lego_Racers_(video_game))*
 
----
+It is based on [OpenSWE1R](https://github.com/OpenSWE1R/openswe1r) and developed with the help of [JayFoxRox](https://github.com/JayFoxRox)
 
-### OpenSWE1R
-*An Open-Source port of the 1999 Game ["Star Wars: Episode 1 Racer"](https://en.wikipedia.org/wiki/Star_Wars_Episode_I:_Racer)*
+The state of the project is not as impressive as it's origins.
+![Screenshot of OpenLGR running on Linux](https://krul.finf.uni-hannover.de/~janknittel/images/Screenshot%20from%202017-12-19%2017-33-50.png)
 
-![Screenshot of OpenSWE1R running on Linux](https://i.imgur.com/LAqHPgh.png)
+The Rest of the README is copied from [OpenSWE1R](https://github.com/OpenSWE1R/openswe1r) and is only pratially applicable.
 
 ### Details
 
 This project is a mix of console emulation and something like [WINE](https://www.winehq.org/).
 It implements the subset of Windows functions used by the game.
-OpenSWE1R also contains x86 CPU emulation.
+OpenLGR also contains x86 CPU emulation.
 The original games code is replaced by open-source code which is patched into the game at runtime.
 This is similar to the approach used by [OpenRCT2](https://openrct2.website/), but more emphasis is put on emulation and platform independence.
 
@@ -59,8 +60,8 @@ For now, the goal is to support the x86 Windows Version of the game.
 From your desired project folder, run:
 
 ```
-git clone https://github.com/OpenSWE1R/openswe1r.git
-cd openswe1r
+git clone https://github.com/james-knippes/openlgr.git
+cd openlgr
 mkdir build
 cd build
 cmake ..
@@ -69,12 +70,12 @@ make
 
 ### Running
 
-The `openswe1r` binary contained in the build directory is a drop-in replacement for `swep1rcr.exe`.
+The `openlgr` binary contained in the build directory is a drop-in replacement for `swep1rcr.exe`.
 Copy it to your game folder and run it.
 
 ### Development
 
-Development happens on GitHub at https://github.com/OpenSWE1R/openswe1r
+Development happens on GitHub at https://github.com/james-knippes/openlgr
 You can help by reviewing other peoples Pull-Requests or sending your own after forking.
 
 ---

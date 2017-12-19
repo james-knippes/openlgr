@@ -134,7 +134,7 @@ Address CreateInterface(const char* name, unsigned int slotCount) {
 
 Exe* dll; //FIXME: This is the biggest hack. I feel this shouldn't be exposed aside from the loader, it also only supports 1 dll
 Exe* exe; //FIXME: This is hack. I feel this shouldn't be exposed aside from the loader
-const char* exeName = "swep1rcr.exe";
+const char* exeName = "LEGORacers.exe";
 
 static char* TranslatePath(const char* path) {
   char* newPath = malloc(strlen(path) + 1);
@@ -581,7 +581,7 @@ HACKY_IMPORT_BEGIN(SetHandleCount)
 HACKY_IMPORT_END()
 
 HACKY_IMPORT_BEGIN(GetCommandLineA)
-  const char* cmd = "swep1rcr.exe";
+  const char* cmd = "LEGORacers.exe";
   Address tmp = Allocate(strlen(cmd) + 1);
   strcpy((char*)Memory(tmp), cmd);
   eax = tmp;
@@ -4160,7 +4160,7 @@ int main(int argc, char* argv[]) {
 	  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 	  SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 
-    sdlWindow = SDL_CreateWindow("OpenSWE1R", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, style);
+    sdlWindow = SDL_CreateWindow("OpenLGR", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, style);
 	  assert(sdlWindow != NULL);
 
 	  SDL_GLContext glcontext = SDL_GL_CreateContext(sdlWindow);

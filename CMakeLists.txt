@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.1)
-project(OpenSWE1R)
+project(OpenLGR)
 
 option(USE_VM "Use hardware virtualization backend for Unicorn-Engine" OFF)
 
@@ -22,7 +22,7 @@ include_directories(SYSTEM
   ${OPENAL_INCLUDE_DIR}
 )
 
-add_executable(openswe1r
+add_executable(openlgr
   main.c
   emulation.c
   export.c
@@ -35,17 +35,17 @@ add_executable(openswe1r
 )
 
 if(USE_VM)
-  target_compile_definitions(openswe1r PUBLIC -DUC_KVM)
-  target_sources(openswe1r PUBLIC
+  target_compile_definitions(openlgr PUBLIC -DUC_KVM)
+  target_sources(openlgr PUBLIC
     uc_kvm.c
   )
 else()
-  target_link_libraries(openswe1r
+  target_link_libraries(openlgr
     ${LIBUNICORN_LIBRARY}
   )
 endif()
 
-target_link_libraries(openswe1r
+target_link_libraries(openlgr
   ${OPENGL_LIBRARIES}
   ${GLEW_LIBRARIES}
   ${SDL2_LIBRARY}
