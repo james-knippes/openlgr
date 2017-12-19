@@ -129,6 +129,18 @@ typedef struct {
   API(DDSCAPS2) ddsCaps;
 } API(DDCAPS);
 
+
+// DirectDraw bit-depth constants 
+enum {
+  API(DDBD_1) = 0x00004000l,
+  API(DDBD_2) = 0x00002000l,
+  API(DDBD_4) = 0x00001000l,
+  API(DDBD_8) = 0x00000800l,
+  API(DDBD_16) = 0x00000400l,
+  API(DDBD_24) = 0X00000200l,
+  API(DDBD_32) = 0x00000100l
+};
+
 enum {
   API(DDSCAPS_TEXTURE) = 0x00001000,
   API(DDSCAPS_MIPMAP)  = 0x00400000

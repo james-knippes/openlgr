@@ -73,6 +73,21 @@ DECLARE_INTERFACE_(IDirect3D3, IUnknown)
 
 
 #if 0
+DECLARE_INTERFACE_(IDirect3DMaterial3, IUnknown)
+{
+    /*** IUnknown methods ***/
+    STDMETHOD(QueryInterface)(THIS_ REFIID riid, LPVOID * ppvObj) PURE; // 0
+    STDMETHOD_(ULONG,AddRef)(THIS) PURE; // 1
+    STDMETHOD_(ULONG,Release)(THIS) PURE; // 2
+
+    /*** IDirect3DMaterial3 methods ***/
+    STDMETHOD(SetMaterial)(THIS_ LPD3DMATERIAL) PURE; // 3
+    STDMETHOD(GetMaterial)(THIS_ LPD3DMATERIAL) PURE; // 4
+    STDMETHOD(GetHandle)(THIS_ LPDIRECT3DDEVICE3,LPD3DMATERIALHANDLE) PURE; // 5
+};
+#endif
+
+#if 0
 
 DECLARE_INTERFACE_(IDirect3DDevice3, IUnknown)
 {

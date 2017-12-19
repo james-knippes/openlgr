@@ -63,7 +63,12 @@ Export* LookupExportByOrdinal(const char* name, uint32_t ordinal) {
     if (ordinal == 17) {
       return LookupExportByName("InitCommonControls");
     }
+  } else if (!strcmp(name, "DSOUND.dll")) {
+    if (ordinal == 1) {
+      return LookupExportByName("DirectSoundCreate");
+    }
   }
+  
   return NULL;
 }
 
@@ -1617,6 +1622,15 @@ HACKY_IMPORT_BEGIN(RegOpenKeyExA)
   esp += 5 * 4;
 HACKY_IMPORT_END()
 
+
+HACKY_IMPORT_BEGIN(RegOpenKeyA)
+  hacky_printf("hKey 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("lpSubKey 0x%" PRIX32 " ('%s')\n", stack[2], (char*)Memory(stack[2]));
+  hacky_printf("phkResult 0x%" PRIX32 "\n", stack[3]);
+  eax = 0; // ERROR_SUCCESS
+  esp += 3 * 4;
+HACKY_IMPORT_END()
+
 HACKY_IMPORT_BEGIN(GetLogicalDrives)
   eax = (1 << 0) | (1 << 2) | (1 << 3); // A, C, D
 HACKY_IMPORT_END()
@@ -1640,7 +1654,6 @@ HACKY_IMPORT_BEGIN(SetErrorMode)
   eax = 0; // Previous mode
   esp += 1 * 4;
 HACKY_IMPORT_END()
-
 
 
 
@@ -1874,7 +1887,7 @@ HACKY_COM_BEGIN(IDirectDraw4, 8)
     Address descAddress = Allocate(sizeof(API(DDSURFACEDESC2)));
     API(DDSURFACEDESC2)* desc = Memory(descAddress);
     desc->ddpfPixelFormat.dwFlags = API(DDPF_RGB);
-    desc->ddpfPixelFormat.dwRGBBitCount = 24;
+    desc->ddpfPixelFormat.dwRGBBitCount = 16;
     desc->dwWidth = 640;
     desc->dwHeight = 480;
     desc->lpSurface = 0x01010101;
@@ -1924,8 +1937,9 @@ HACKY_COM_BEGIN(IDirectDraw4, 11)
   halCaps->dwVidMemTotal = 16*1024*1024; // 16MiB VRAM free :)
   halCaps->dwVidMemFree = 12*1024*1024; // 12MiB VRAM free :(
   
+  
 #endif
-
+  
   eax = 0; // FIXME: No idea what this expects to return..
   esp += 3 * 4;
 HACKY_COM_END()
@@ -2113,6 +2127,8 @@ HACKY_COM_BEGIN(IDirectDrawSurface4, 12)
     Address surfaceAddress = CreateInterface("IDirectDrawSurface4", 50);
     API(DirectDrawSurface4)* surface = (API(DirectDrawSurface4)*)Memory(surfaceAddress);
     surface->texture = 0;
+    surface->desc.ddpfPixelFormat.dwFlags = API(DDPF_RGB);
+    surface->desc.ddpfPixelFormat.dwRGBBitCount = 16;
     *(Address*)Memory(stack[3]) = surfaceAddress;
   }
   //FIXME: Used to retrieve surface for mipmaps?!
@@ -2286,8 +2302,16 @@ HACKY_COM_BEGIN(IDirect3D3, 3)
     memset(desc, 0x00, sizeof(API(D3DDEVICEDESC)));
     desc->dwSize = sizeof(API(D3DDEVICEDESC));
     desc->dwFlags = 0xFFFFFFFF;
-
-    desc->dwDeviceZBufferBitDepth = 24;
+    desc->dcmColorModel = API(D3DCOLOR_RGB);
+    desc->dpcTriCaps.dwTextureAddressCaps |= API(D3DPTADDRESSCAPS_WRAP);
+    desc->dwDeviceRenderBitDepth |= API(DDBD_16);
+    desc->dwDeviceZBufferBitDepth |= API(DDBD_16);
+    /* debug structures
+    printf("%d\n",offsetof(API(D3DDEVICEDESC), dpcTriCaps));
+    printf("%d\n",offsetof(API(D3DPRIMCAPS), dwTextureAddressCaps));
+    printf("%d\n",sizeof(desc->dpcTriCaps));
+    assert(false); */
+    //desc->dwDeviceZBufferBitDepth = 16;
 
 enum {
   API(D3DPTEXTURECAPS_PERSPECTIVE) =   0x00000001L,
@@ -2371,6 +2395,16 @@ iid->Data4[7] = 0x6E;
   }
 HACKY_COM_END()
 
+// IDirect3D3 -> STDMETHOD(CreateMaterial)(THIS_ LPDIRECT3DMATERIAL3*,LPUNKNOWN) PURE; // 5
+HACKY_COM_BEGIN(IDirect3D3, 5)
+  hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("a 0x%" PRIX32 "\n", stack[2]);
+  hacky_printf("b 0x%" PRIX32 "\n", stack[3]);
+  *(Address*)Memory(stack[2]) = CreateInterface("IDirect3DMaterial3", 200);
+  eax = 0; // FIXME: No idea what this expects to return..
+  esp += 3 * 4;
+HACKY_COM_END()
+
 
 // IDirect3D3 -> STDMETHOD(CreateViewport)(THIS_ LPDIRECT3DVIEWPORT3*,LPUNKNOWN) PURE; // 6
 HACKY_COM_BEGIN(IDirect3D3, 6)
@@ -2442,6 +2476,29 @@ HACKY_COM_END()
 
 
 
+// IDirect3DMaterial3 -> STDMETHOD(SetMaterial)(THIS_ LPD3DMATERIAL) PURE; // 3
+HACKY_COM_BEGIN(IDirect3DMaterial3, 3)
+  hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("a 0x%" PRIX32 "\n", stack[2]);
+  eax = 0; // FIXME: No idea what this expects to return..
+  esp += 2 * 4;
+HACKY_COM_END()
+
+// IDirect3DMaterial3 -> STDMETHOD(GetHandle)(THIS_ LPDIRECT3DDEVICE3,LPD3DMATERIALHANDLE) PURE; // 5
+HACKY_COM_BEGIN(IDirect3DMaterial3, 5)
+  hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("a 0x%" PRIX32 "\n", stack[2]);
+  hacky_printf("b 0x%" PRIX32 "\n", stack[3]);
+  eax = 0; // FIXME: No idea what this expects to return..
+  esp += 3 * 4;
+HACKY_COM_END()
+
+
+
+
+
+
+
 
 
 
@@ -2483,6 +2540,7 @@ HACKY_COM_BEGIN(IDirect3DDevice3, 3)
   hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
   hacky_printf("a 0x%" PRIX32 "\n", stack[2]);
   hacky_printf("b 0x%" PRIX32 "\n", stack[3]);
+  //assert(false);
   eax = 0; // FIXME: No idea what this expects to return..
   esp += 3 * 4;
 HACKY_COM_END()
@@ -2685,7 +2743,7 @@ HACKY_COM_BEGIN(IDirect3DDevice3, 22)
       break;
 
     case API(D3DRENDERSTATE_ALPHAFUNC):
-      assert(b == 6);
+      assert(b == 8);
       //FIXME
       break;
 
@@ -2904,6 +2962,14 @@ HACKY_COM_BEGIN(IDirect3DViewport3, 2)
   hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
   eax = 0; // FIXME: No idea what this expects to return..
   esp += 1 * 4;
+HACKY_COM_END()
+
+// IDirect3DViewport3 -> STDMETHOD(SetBackground)(THIS_ D3DMATERIALHANDLE) PURE; // 8
+HACKY_COM_BEGIN(IDirect3DViewport3, 8)
+  hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("a 0x%" PRIX32 "\n", stack[2]);
+  eax = 0; // FIXME: No idea what this expects to return..
+  esp += 2 * 4;
 HACKY_COM_END()
 
 // IDirect3DViewport3 -> STDMETHOD(SetViewport2)(THIS_ LPD3DVIEWPORT2) PURE; // 17
@@ -3535,6 +3601,7 @@ HACKY_IMPORT_BEGIN(_open)
   assert(stack[2] == 0x8000); // FIXME
   int f = open(Memory(stack[1]),O_RDONLY);
   if (f == -1) {
+    printf("Failed to open (%s)\n", Memory(stack[1]));
     eax = -1;
   } else {
     posix_fh[cur_posix_fh] = f;
@@ -3609,6 +3676,42 @@ HACKY_IMPORT_BEGIN(BringWindowToTop)
   eax = 1; // Non-Zero on success
   esp += 1 * 4;
 HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(SetFocus)
+  hacky_printf("hWnd 0x%" PRIX32 "\n", stack[1]);
+  eax = stack[1]; // give back same handle
+  esp += 1 * 4;
+HACKY_IMPORT_END()
+
+
+
+HACKY_IMPORT_BEGIN(DirectSoundCreate)
+  hacky_printf("lpGuid 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("ppDS 0x%" PRIX32 "\n", stack[2]);
+  hacky_printf("pUnkOuter 0x%" PRIX32 "\n", stack[3]);
+  eax = -1; // FIXME: this is not "DSERR_NODRIVER" but should be?
+  esp += 3 * 4;
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(ReleaseMutex)
+  hacky_printf("hMutex 0x%" PRIX32 "\n", stack[1]);
+  eax = 1; // BOOL nonzero = return success
+  esp += 1 * 4;
+HACKY_IMPORT_END()
+
+
+HACKY_IMPORT_BEGIN(strncmp)
+  hacky_printf("string1 0x%" PRIX32 " (%s)\n", stack[1],Memory(stack[1]));
+  hacky_printf("string2 0x%" PRIX32 " (%s)\n", stack[2],Memory(stack[2]));
+  hacky_printf("count %" PRIu32 "\n", stack[3]);
+  eax = (int32_t)strncmp(Memory(stack[1]),Memory(stack[2]),stack[3]); //  INT diff
+  esp += 0 * 4;
+HACKY_IMPORT_END()
+
+
+
+
+
 
 
 

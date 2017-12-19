@@ -221,6 +221,10 @@ typedef enum {
 
 
 typedef uint32_t API(D3DCOLORMODEL);
+enum {
+    API(D3DCOLOR_MONO) = 1,
+    API(D3DCOLOR_RGB) = 2
+};
 
 
 typedef struct {
@@ -239,6 +243,11 @@ typedef struct {
     uint32_t dwStippleWidth;             /* maximum width and height of */
     uint32_t dwStippleHeight;            /* of supported stipple (up to 32x32) */
 } API(D3DPRIMCAPS);
+
+// D3DPRIMCAPS.dwTextureAddressCaps
+enum {
+    API(D3DPTADDRESSCAPS_WRAP) = 0x00000001L,
+};
 
 typedef struct {
     uint32_t dwSize;
