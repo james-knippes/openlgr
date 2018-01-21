@@ -6,10 +6,13 @@
 #include "emulation.h"
 
 typedef uint32_t API(DWORD);
+typedef uint16_t API(WORD);
 typedef void API(VOID);
 
 typedef uint32_t API(UINT); // FIXME: Assumption
 typedef int16_t API(SHORT); // FIXME: Assumption
+typedef uint8_t API(CHAR);
+typedef uint8_t API(BYTE);
 
 typedef struct {
   uint32_t Data1;
@@ -60,6 +63,19 @@ typedef struct {
 } API(STR);
 typedef Address API(LPTSTR);
 
+typedef struct {
+  API(DWORD) dwOSVersionInfoSize;
+  API(DWORD) dwMajorVersion;
+  API(DWORD) dwMinorVersion;
+  API(DWORD) dwBuildNumber;
+  API(DWORD) dwPlatformId;
+  API(CHAR) szCSDVersion[128]; // TCHAR
+  //API(WORD)  wServicePackMajor;
+  //API(WORD)  wServicePackMinor;
+  //API(WORD)  wSuiteMask;
+  //API(BYTE)  wProductType;
+  //API(BYTE)  wReserved;
+} API(OSVERSIONINFOEX);
 
 enum {
   API(VK_SHIFT) = 0x10,

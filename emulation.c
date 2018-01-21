@@ -47,6 +47,7 @@ typedef struct {
 typedef struct {
 
   uint64_t sleep;
+  bool terminated;
 
   // Standard stuff
   uint32_t eip;
@@ -436,6 +437,7 @@ unsigned int CreateEmulatedThread(uint32_t eip) {
   ctx->esp = esp;
   ctx->ebp = 0;
   ctx->sleep = 0;
+  ctx->terminated = false;
   PrintContext(ctx);
 }
 
@@ -450,7 +452,15 @@ void DeleteEmulatedThread() {
 
 static unsigned int GetThreadCount() {
   //FIXME: Protect with mutex?!
-  return threadCount;
+  unsigned int count = 0;
+  for (unsigned int i = 0; i < threadCount; i++) {
+    ThreadContext* ctx = &threads[i];
+    if (ctx->terminated) {
+        continue;
+    }
+    count++;
+  }
+  return count;
 }
 
 void RunEmulation() {
@@ -475,27 +485,28 @@ void RunEmulation() {
 
     TransferContext(ctx, true);
 
-    while(true) {
-      err = uc_emu_start(uc, ctx->eip, 0, 0, 0);
+    err = uc_emu_start(uc, ctx->eip, 0, 0, 0);
 
-      // Check for errors
-      if (err != 0) {
-        break;
-      }
-
-      uc_reg_read(uc, UC_X86_REG_EIP, &ctx->eip);
-
-      Address hltAddress = ctx->eip - 1;
-      assert(*(uint8_t*)Memory(hltAddress) == 0xF4);
-
-      HltHandler* hltHandler = findHltHandler(hltAddress);
-      if(hltHandler != NULL) {
-        hltHandler->callback(uc, hltHandler->address, hltHandler->user_data);
-      }
-
-      //Hack: Manually transfers EIP (might have been changed in callback)
-      uc_reg_read(uc, UC_X86_REG_EIP, &ctx->eip);
+    // Check for errors
+    if (err != 0) {
+      assert(false);
     }
+
+    uc_reg_read(uc, UC_X86_REG_EIP, &ctx->eip);
+
+    Address hltAddress = ctx->eip - 1;
+    assert(*(uint8_t*)Memory(hltAddress) == 0xF4);
+
+    HltHandler* hltHandler = findHltHandler(hltAddress);
+    if(hltHandler != NULL) {
+      hltHandler->callback(uc, hltHandler->address, hltHandler->user_data);
+    } else {
+      printf("Encountered HLT instruction, but no handler registered\n");
+      assert(false);
+    }
+
+    //Hack: Manually transfers EIP (might have been changed in callback)
+    uc_reg_read(uc, UC_X86_REG_EIP, &ctx->eip);
 
     // threads array might be relocated if a thread was modified in a callback; update ctx pointer
     ctx = &threads[currentThread];

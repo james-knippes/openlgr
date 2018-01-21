@@ -7,6 +7,11 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <assert.h>
+#include <errno.h>
+
+// POSIX kram
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "common.h"
 #include "descriptor.h"
@@ -75,10 +80,14 @@ Export* LookupExportByOrdinal(const char* name, uint32_t ordinal) {
 // HACK BLOCK!
 #if 1 
 
+static Address errno_addr = 0;
+static Address qsort_address = 0;
+static Address ftol_address = 0;
 
 const char** dirlisting = NULL;
 
 Address clearEax = 0;
+Address setEax = 0;
 
 uint32_t tls[1000] = {0};
 
@@ -148,6 +157,14 @@ static char* TranslatePath(const char* path) {
     cursor++;
   }
   return newPath;
+}
+
+void update_errno(int value) {
+    int32_t* errno_p = Memory(errno_addr);
+    switch(value){
+      case ENOENT: *errno_p = 2; break;
+      default: printf("could not map errno %d\n", value); assert(false);break;
+    }
 }
 
 void StackTrace(uint32_t base, unsigned int frames, unsigned int arguments) {
@@ -543,7 +560,8 @@ HACKY_IMPORT_BEGIN(GetModuleFileNameA)
   hacky_printf("hModule 0x%" PRIX32 "\n", stack[1]);
   hacky_printf("lpFilename 0x%" PRIX32 "\n", stack[2]);
   hacky_printf("nSize 0x%" PRIX32 "\n", stack[3]);
-  const char* path = "XYZ";
+  assert(stack[1] == 0);
+  const char* path = exeName;
   assert(stack[3] >= (strlen(path) + 1));
   eax = sprintf((char*)Memory(stack[2]), "%s", path); // number of chars written
   esp += 3 * 4;
@@ -635,7 +653,24 @@ HACKY_IMPORT_END()
 
 HACKY_IMPORT_BEGIN(GetModuleHandleA)
   hacky_printf("lpModuleName 0x%" PRIX32 " ('%s')\n", stack[1], Memory(stack[1]));
-  eax = 999;
+  if (stack[1] == 0) {
+    static Address exe_buffer = 0;
+    // HACK: GetModuleHandle should return pointer to Exe mapped in memory
+    if(exe_buffer == 0) {
+      FILE* f = fopen(exeName,"rb");
+      fseek(f,0,SEEK_END);
+      size_t size = ftell(f);
+      fseek(f,0,SEEK_SET);
+      exe_buffer = Allocate(size);
+      fread(Memory(exe_buffer),1,size,f);
+      fclose(f);
+    }
+    eax = exe_buffer;
+  } else if (!strcmp(Memory(stack[1]),"KERNEL32")){
+    eax = 0x321; // FIXME: probably not use. should be pointer to kernel32.dll
+  } else {
+    assert(false);
+  }
   esp += 1 * 4;
 HACKY_IMPORT_END()
 
@@ -2474,7 +2509,12 @@ HACKY_COM_END()
 
 
 
-
+// IDirect3DMaterial3 -> STDMETHOD_(ULONG,Release)(THIS) PURE; // 2
+HACKY_COM_BEGIN(IDirect3DMaterial3, 2)
+  hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
+  eax = 0; // FIXME: No idea what this expects to return..
+  esp += 1 * 4;
+HACKY_COM_END()
 
 // IDirect3DMaterial3 -> STDMETHOD(SetMaterial)(THIS_ LPD3DMATERIAL) PURE; // 3
 HACKY_COM_BEGIN(IDirect3DMaterial3, 3)
@@ -2972,6 +3012,46 @@ HACKY_COM_BEGIN(IDirect3DViewport3, 8)
   esp += 2 * 4;
 HACKY_COM_END()
 
+// IDirect3DViewport3 -> STDMETHOD(Clear)(THIS_ DWORD,LPD3DRECT,DWORD) PURE; // 12
+HACKY_COM_BEGIN(IDirect3DViewport3, 12)
+  hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("a 0x%" PRIX32 "\n", stack[2]);
+  hacky_printf("b 0x%" PRIX32 "\n", stack[3]);
+  hacky_printf("c 0x%" PRIX32 "\n", stack[4]);
+
+  unsigned int rectCount = stack[2];
+  API(D3DRECT)* rects = Memory(stack[3]);
+
+  glEnable(GL_SCISSOR_TEST);
+  GLint viewport[4];
+  glGetIntegerv(GL_VIEWPORT, viewport);
+  for(unsigned int i = 0; i < rectCount; i++) {
+    API(D3DRECT)* rect = &rects[i];
+    //FIXME: Clip to viewport..
+    int width = rect->x2 - rect->x1;
+    int height = rect->y2 -  rect->y1;
+    glScissor(rect->x1, viewport[3] - rect->y2, width, height);
+
+    unsigned int flags = stack[4];
+    uint32_t clearColor = 0xffff00ff;
+    float zValue = (rand() & 255) / 255.0;
+
+    float a = (clearColor >> 24) / 255.0f;
+    float r = ((clearColor >> 24) & 0xFF) / 255.0f;
+    float g = ((clearColor >> 16) & 0xFF) / 255.0f;
+    float b = (clearColor & 0xFF) / 255.0f;
+
+    glClearDepth(zValue);
+    glClearColor(r, g, b, a);
+    glClear(((flags & API(D3DCLEAR_TARGET)) ? GL_COLOR_BUFFER_BIT : 0) |
+            ((flags & API(D3DCLEAR_ZBUFFER)) ? GL_DEPTH_BUFFER_BIT : 0));
+  }
+  glDisable(GL_SCISSOR_TEST);
+
+  eax = 0; // FIXME: No idea what this expects to return..
+  esp += 4 * 4;
+HACKY_COM_END()
+
 // IDirect3DViewport3 -> STDMETHOD(SetViewport2)(THIS_ LPD3DVIEWPORT2) PURE; // 17
 HACKY_COM_BEGIN(IDirect3DViewport3, 17)
   hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
@@ -3229,6 +3309,13 @@ HACKY_COM_BEGIN(IDirectInputDeviceA, 15)
   esp += 2 * 4;
 HACKY_COM_END()
 
+// IDirectInputDevice2A -> STDMETHOD(Poll)(THIS) PURE;
+HACKY_COM_BEGIN(IDirectInputDeviceA, 25)
+  hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
+  eax = 0; // DI_OK -> for success
+  esp += 1 * 4;
+HACKY_COM_END()
+
 
 
 
@@ -3314,7 +3401,7 @@ HACKY_COM_BEGIN(IDirectInputA, 2)
   esp += 1 * 4;
 HACKY_COM_END()
 
-// IDirectInputA -> STDMETHOD(CreateDevice)(THIS_ REFGUID,LPDIRECTINPUTDEVICEA *,LPUNKNOWN) PURE;
+// IDirectInputA -> STDMETHOD(CreateDevice)(THIS_ REFGUID,LPDIRECTINPUTDEVICEA *,LPUNKNOWN) PURE; //3
 HACKY_COM_BEGIN(IDirectInputA, 3)
   hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
   hacky_printf("rguid 0x%" PRIX32 "\n", stack[2]);
@@ -3325,7 +3412,7 @@ HACKY_COM_BEGIN(IDirectInputA, 3)
   esp += 4 * 4;
 HACKY_COM_END()
 
-// IDirectInputA -> STDMETHOD(EnumDevices)(THIS_ DWORD,LPDIENUMDEVICESCALLBACKA,LPVOID,DWORD) PURE;
+// IDirectInputA -> STDMETHOD(EnumDevices)(THIS_ DWORD,LPDIENUMDEVICESCALLBACKA,LPVOID,DWORD) PURE; //4
 HACKY_COM_BEGIN(IDirectInputA, 4)
   hacky_printf("EnumDevices\n");
   hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
@@ -3598,10 +3685,30 @@ int cur_posix_fh = 100;
 HACKY_IMPORT_BEGIN(_open)
   hacky_printf("filename 0x%" PRIX32 " (%s)\n", stack[1], Memory(stack[1]));
   hacky_printf("oflag 0x%" PRIX32 "\n", stack[2]);
-  assert(stack[2] == 0x8000); // FIXME
-  int f = open(Memory(stack[1]),O_RDONLY);
+  int flags = 0;
+  switch(stack[2] & 3) {
+    case 0: flags = O_RDONLY;break;
+    case 1: flags = O_WRONLY;break;
+    case 2: flags = O_RDWR;break;
+    default: assert(false);break;
+  }
+  if (stack[2] & 0x0100) {
+    flags |= O_CREAT;
+  }
+  if (stack[2] & 0x0200) {
+    flags |= O_TRUNC;
+  }
+  
+  //if(stack[2] & 0x8000) {flags |= O_BINARY;} // FIXME
+  assert((stack[2] & ~0x8303) == 0);
+  
+  char* path = TranslatePath(Memory(stack[1]));
+  printf("translated to '%s'\n", path);
+  
+  int f = open(path,flags);
   if (f == -1) {
-    printf("Failed to open (%s)\n", Memory(stack[1]));
+    printf("Failed to open (%s)\n", path);
+    update_errno(errno);
     eax = -1;
   } else {
     posix_fh[cur_posix_fh] = f;
@@ -3642,6 +3749,97 @@ HACKY_IMPORT_BEGIN(_read)
   esp += 0 * 4; // cdecl
 HACKY_IMPORT_END()
 
+HACKY_IMPORT_BEGIN(_getcwd)
+  hacky_printf("buffer 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("maxlen %" PRIu32 "\n", stack[2]);
+  assert(stack[2] >= 4);
+  strcpy(Memory(stack[1]),".\\");
+  eax = stack[1];
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(_itoa)
+  hacky_printf("value %" PRId32 "\n", stack[1]);
+  hacky_printf("str 0x%" PRIX32 "\n", stack[2]);
+  hacky_printf("radix %" PRIu32 "\n", stack[3]);
+  assert(stack[3] == 10);
+  sprintf(Memory(stack[2]),"%" PRId32 ,stack[1]);
+  eax = stack[2];
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(_chdir)
+  hacky_printf("dirname 0x%" PRIX32 " (%s)\n", stack[1],Memory(stack[1]));
+  eax = -1; // dont fake success , like your dad
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(_mkdir)
+  hacky_printf("dirname 0x%" PRIX32 " (%s)\n", stack[1],Memory(stack[1]));
+  // breakpoint here?
+  char* path = TranslatePath(Memory(stack[1]));
+  printf("translated to '%s'\n", path);
+  mkdir(path,S_IRWXU);
+  eax = 0; // fake success , like your dad
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(_access)
+  hacky_printf("pathname 0x%" PRIX32 " (%s)\n", stack[1],Memory(stack[1]));
+  hacky_printf("mode 0x%" PRIX32 "\n", stack[2]);
+  int mode;
+  switch(stack[2]) {
+    case 0: mode = F_OK; break;
+    case 2: mode = W_OK; break;
+    case 4: mode = R_OK; break;
+    case 6: mode = R_OK | W_OK; break;
+    default: assert(false);break;
+  }
+  char* path = TranslatePath(Memory(stack[1]));
+  printf("translated to '%s'\n", path);
+  int r = access(path, mode);
+  if(r == -1) {
+    eax = -1;
+    // FIXME ERRNO
+    update_errno(errno);
+  } else if (r == 0 ){
+    eax = 0;
+  } else {
+    assert(false);
+  }
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(qsort)
+  hacky_printf("base 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("num %" PRIu32 "\n", stack[2]);
+  if(stack[2] > 1000) {
+    printf("number of elements to sort very high: %d", stack[2]);
+    assert(false);
+  }
+  hacky_printf("width %" PRIu32 "\n", stack[3]);
+  hacky_printf("comp 0x%" PRIX32 "\n", stack[4]);
+  
+  esp -= 1 * 4; // save return to stack
+  *(uint32_t*)Memory(esp) = returnAddress;
+  
+  eip = qsort_address; // "jump" to qsort
+  //eax = 0; // is set by qsort i think?
+  //esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+
+HACKY_IMPORT_BEGIN(_ftol)  
+  //printf("\n"); // FIXME : print parameter
+
+  esp -= 1 * 4; // save return to stack
+  *(uint32_t*)Memory(esp) = returnAddress;
+
+  eip = ftol_address; //jump to _ftol
+  //eax = 0; // fake success , like your dad
+  //esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
 //??3@YAXPAX@Z
 HACKY_IMPORT_BEGIN(hacky_operater_delete)
   hacky_printf("p %" PRIu32 "\n", stack[1]);
@@ -3653,8 +3851,28 @@ HACKY_IMPORT_END()
 HACKY_IMPORT_BEGIN(LoadLibraryA)
   hacky_printf("lpFileName 0x%" PRIX32 " (%s)\n", stack[1], Memory(stack[1]));
   assert(!strcmp(Memory(stack[1]), "GolDP.DLL"));
-  eax = 0xD770; // HMODULE
+  uint32_t dll_handle = 0xD770; // HMODULE
   esp += 1 * 4;
+  
+  eip = dll->peHeader.imageBase + dll->peHeader.addressOfEntryPoint;
+  
+  esp -= 4;
+  *(uint32_t*)Memory(esp) = returnAddress;
+  // push setEax to stack, so eax is set to dll_handle (Loadlibary return value) after DLL main
+  esp -= 4;
+  *(uint32_t*)Memory(esp) = dll_handle; // HMODULE (Loadlibary return value)
+  // Prepare arguments for dll main (WINAPI)
+  esp -= 4;
+  *(uint32_t*)Memory(esp) = 0; // LPVOID lpvReserved
+  esp -= 4;
+  *(uint32_t*)Memory(esp) = 1; // DWORD fwdREason
+  esp -= 4;
+  *(uint32_t*)Memory(esp) = dll_handle; // HINSTANCE hinstDLL
+  // return adddress for DllMain
+  esp -= 4;
+  *(uint32_t*)Memory(esp) = setEax; // pop eax from stack and return
+
+  printf("  calling DllMain at 0x%" PRIX32 "\n", eip);
 HACKY_IMPORT_END()
 
 HACKY_IMPORT_BEGIN(SetWindowLongA)
@@ -3708,12 +3926,35 @@ HACKY_IMPORT_BEGIN(strncmp)
   esp += 0 * 4;
 HACKY_IMPORT_END()
 
+HACKY_IMPORT_BEGIN(GetVersionExA)
+  hacky_printf("lpVersionInfo 0x%" PRIX32 "\n", stack[1]);
+  API(OSVERSIONINFOEX)* VersionInfo = Memory(stack[1]);
+  assert(VersionInfo->dwOSVersionInfoSize == sizeof(API(OSVERSIONINFOEX)));
+  // FOR MAX SECURITY >> assert(VersionInfo->dwOSVersionInfoSize >= 4); 
+  // memset(((uint8_t*)VersionInfo)+4, 0x00, VersionInfo->dwOSVersionInfoSize-4);
+  memset(VersionInfo,0x00,VersionInfo->dwOSVersionInfoSize);
+  VersionInfo->dwOSVersionInfoSize = sizeof(API(OSVERSIONINFOEX));
+  eax = 1; //  Nonzero for success
+  esp += 1 * 4;
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(GetEnvironmentVariableA)
+  hacky_printf("lpName 0x%" PRIX32 " (%s)\n", stack[1],Memory(stack[1]));
+  hacky_printf("lpBuffer 0x%" PRIX32 "\n", stack[2]);
+  hacky_printf("nSize %" PRIu32 "\n", stack[3]);
+  eax = 0; // zero for failure: variable not set
+  esp += 3 * 4;
+HACKY_IMPORT_END()
 
 
 
 
-
-
+// ERRNO
+HACKY_IMPORT_BEGIN(_errno)
+  assert(errno_addr != 0);
+  eax = errno_addr; // 
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
 
 
 
@@ -4218,9 +4459,104 @@ int main(int argc, char* argv[]) {
   RelocateExe(exe);
 
   clearEax = Allocate(3);
-  uint8_t* p = Memory(clearEax);
-  *p++ = 0x31; *p++ = 0xC0; // xor eax, eax
-  *p++ = 0xC3;              // ret
+  {
+    uint8_t* p = Memory(clearEax);
+    *p++ = 0x31; *p++ = 0xC0; // xor eax, eax
+    *p++ = 0xC3;              // ret
+  }
+  
+  setEax = Allocate(2);
+  {
+    uint8_t* p = Memory(setEax);
+    //*p++ = 0xf4; // pop eax
+    *p++ = 0x58; // pop eax
+    *p++ = 0xC3; // ret
+  }
+  
+  errno_addr = Allocate(4);
+  
+  // qsort (from CRT) uses a callback an unspecified amount of times.
+  // This would be pretty hard to simulate with our current hooking technique.
+  // So to avoid having to return to the host, we simply use a simple sorting
+  // algorithm (namely insertion sort) and plug it into the guest.
+  // Beware the O(n^2) and unreadable mess of assembly with rough comments.
+  // qsort_address = Allocate(109);
+  qsort_address = Allocate(120); // counted 111 bytes the second time. so better allocate to much
+  {
+    uint8_t* p = Memory(qsort_address);
+    // 0x0 - Retrieve arguments, put addr of last input-byte into ebx:
+    *p++ = 0x55;                                        // push   ebp
+    *p++ = 0x57;                                        // push   edi
+    *p++ = 0x56;                                        // push   esi
+    *p++ = 0x53;                                        // push   ebx
+    *p++ = 0x83; *p++ = 0xec; *p++ = 0x0c;              // sub    esp,0xc
+    *p++ = 0x8b; *p++ = 0x5c; *p++ = 0x24; *p++ = 0x24; // mov    ebx,DWORD PTR [esp+0x24]
+    *p++ = 0x8b; *p++ = 0x7c; *p++ = 0x24; *p++ = 0x28; // mov    edi,DWORD PTR [esp+0x28]
+    *p++ = 0x83; *p++ = 0xfb; *p++ = 0x01;              // cmp    ebx,0x1
+    *p++ = 0x76; *p++ = 0x51;                           // jbe    0x65
+    *p++ = 0x85; *p++ = 0xff;                           // test   edi,edi
+    *p++ = 0x74; *p++ = 0x4d;                           // je     0x65
+    *p++ = 0x4b;                                        // dec    ebx
+    *p++ = 0x0f; *p++ = 0xaf; *p++ = 0xdf;              // imul   ebx,edi
+    *p++ = 0x03; *p++ = 0x5c; *p++ = 0x24; *p++ = 0x20; // add    ebx,DWORD PTR [esp+0x20]
+    // 0x20 - Check if there are elements left and take address to one:
+    *p++ = 0x39; *p++ = 0x5c; *p++ = 0x24; *p++ = 0x20; // cmp    DWORD PTR [esp+0x20],ebx
+    *p++ = 0x73; *p++ = 0x3f;                           // jae    0x65
+    *p++ = 0x8b; *p++ = 0x74; *p++ = 0x24; *p++ = 0x20; // mov    esi,DWORD PTR [esp+0x20]
+    *p++ = 0x8b; *p++ = 0x6c; *p++ = 0x24; *p++ = 0x20; // mov    ebp,DWORD PTR [esp+0x20]
+    *p++ = 0x01; *p++ = 0xfe;                           // add    esi,edi
+    // 0x30 - Compare element to following elements and remember which to swap.
+    *p++ = 0x39; *p++ = 0xde;                           // cmp    esi,ebx
+    *p++ = 0x77; *p++ = 0x14;                           // ja     0x48
+    *p++ = 0x50;                                        // push   eax
+    *p++ = 0x50;                                        // push   eax
+    *p++ = 0x55;                                        // push   ebp
+    *p++ = 0x56;                                        // push   esi
+    *p++ = 0xff; *p++ = 0x54; *p++ = 0x24; *p++ = 0x3c; // call   DWORD PTR [esp+0x3c]
+    *p++ = 0x83; *p++ = 0xc4; *p++ = 0x10;              // add    esp,0x10
+    *p++ = 0x85; *p++ = 0xc0;                           // test   eax,eax
+    *p++ = 0x0f; *p++ = 0x4f; *p++ = 0xee;              // cmovg  ebp,esi
+    *p++ = 0x01; *p++ = 0xfe;                           // add    esi,edi
+    *p++ = 0xeb; *p++ = 0xe8;                           // jmp    0x30
+    // 0x48 - Swap elements pointed to by ebp and ebx, unless ebp == ebx:
+    *p++ = 0x31; *p++ = 0xc0;                           // xor    eax,eax
+    *p++ = 0x39; *p++ = 0xdd;                           // cmp    ebp,ebx
+    // 0x4c - Check if we have already swapped all bytes:
+    *p++ = 0x75; *p++ = 0x04;                           // jne    0x52
+    *p++ = 0x29; *p++ = 0xfb;                           // sub    ebx,edi
+    *p++ = 0xeb; *p++ = 0xce;                           // jmp    0x20
+    // 0x52 - Swap a byte of two elements, eax is offset in element:
+    *p++ = 0x8a; *p++ = 0x4c; *p++ = 0x05; *p++ = 0x00; // mov    cl,BYTE PTR [ebp+eax*1+0x0]
+    *p++ = 0x8a; *p++ = 0x14; *p++ = 0x03;              // mov    dl,BYTE PTR [ebx+eax*1]
+    *p++ = 0x88; *p++ = 0x54; *p++ = 0x05; *p++ = 0x00; // mov    BYTE PTR [ebp+eax*1+0x0],dl
+    *p++ = 0x88; *p++ = 0x0c; *p++ = 0x03;              // mov    BYTE PTR [ebx+eax*1],cl
+    *p++ = 0x40;                                        // inc    eax
+    *p++ = 0x39; *p++ = 0xc7;                           // cmp    edi,eax
+    *p++ = 0xeb; *p++ = 0xe7;                           // jmp    0x4c
+    // 0x65 - Cleanup and return:
+    *p++ = 0x83; *p++ = 0xc4; *p++ = 0x0c;              // add    esp,0xc
+    *p++ = 0x5b;                                        // pop    ebx
+    *p++ = 0x5e;                                        // pop    esi
+    *p++ = 0x5f;                                        // pop    edi
+    *p++ = 0x5d;                                        // pop    ebp
+    *p++ = 0xc3;                                        // ret    
+  }
+  
+  // use ftol from https://github.com/idunham/pcc-libs/blob/master/libpcc/_ftol.asm
+  ftol_address = Allocate(39);
+  {
+    uint8_t* p = Memory(ftol_address);
+    *p++ = 0xd9; *p++ = 0x7c; *p++ = 0x24; *p++ = 0xfe;              // fnstcw WORD PTR [esp-0x2]
+    *p++ = 0x66; *p++ = 0x8b; *p++ = 0x44; *p++ = 0x24; *p++ = 0xfe; // mov    ax,WORD PTR [esp-0x2]
+    *p++ = 0x66; *p++ = 0x0d; *p++ = 0x00; *p++ = 0x0c;              // or     ax,0xc00
+    *p++ = 0x66; *p++ = 0x89; *p++ = 0x44; *p++ = 0x24; *p++ = 0xfc; // mov    WORD PTR [esp-0x4],ax
+    *p++ = 0xd9; *p++ = 0x6c; *p++ = 0x24; *p++ = 0xfc;              // fldcw  WORD PTR [esp-0x4]
+    *p++ = 0xdf; *p++ = 0x7c; *p++ = 0x24; *p++ = 0xf4;              // fistp  QWORD PTR [esp-0xc]
+    *p++ = 0xd9; *p++ = 0x6c; *p++ = 0x24; *p++ = 0xfe;              // fldcw  WORD PTR [esp-0x2]
+    *p++ = 0x8b; *p++ = 0x44; *p++ = 0x24; *p++ = 0xf4;              // mov    eax,DWORD PTR [esp-0xc]
+    *p++ = 0x8b; *p++ = 0x54; *p++ = 0x24; *p++ = 0xf8;              // mov    edx,DWORD PTR [esp-0x8]
+    *p++ = 0xc3;                                                     // ret 
+  }
 
 // 0x90 = nop (used to disable code)
 // 0xC3 = ret (used to skip function)
