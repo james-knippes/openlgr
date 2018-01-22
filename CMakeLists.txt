@@ -50,4 +50,5 @@ target_link_libraries(openlgr
   ${GLEW_LIBRARIES}
   ${SDL2_LIBRARY}
   ${OPENAL_LIBRARY}
+  -lm
 )

@@ -8,6 +8,7 @@
 #include <inttypes.h>
 #include <assert.h>
 #include <errno.h>
+#include <math.h>
 
 // POSIX/UNIX kram
 #include <sys/types.h>
@@ -398,7 +399,7 @@ static GLenum SetupRenderer(unsigned int primitiveType, unsigned int vertexForma
   unsigned int texCount = ((vertexFormat & 0xF00) >> 8);
   GLsizei stride = 4 * 4 + 4 + 4 + texCount * 8;
   // Re-Volt only uses D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_SPECULAR OR'd with either D3DFVF_TEX{0,1,2}
-
+  assert(vertexFormat == 0x1c4);
   GLuint program = 0;
   glGetIntegerv(GL_CURRENT_PROGRAM, (GLint*)&program);
 
@@ -2174,6 +2175,11 @@ HACKY_COM_BEGIN(IDirectDrawSurface4, 12)
     Address surfaceAddress = CreateInterface("IDirectDrawSurface4", 50);
     API(DirectDrawSurface4)* surface = (API(DirectDrawSurface4)*)Memory(surfaceAddress);
     surface->texture = 0;
+    memset(&surface->desc,0x00,sizeof(API(DDSURFACEDESC2)));
+    surface->desc.dwSize = sizeof(API(DDSURFACEDESC2));
+    surface->desc.dwWidth = 640; // FIXME:
+    surface->desc.dwHeight = 480; // FIXME:
+  
     surface->desc.ddpfPixelFormat.dwFlags = API(DDPF_RGB);
     surface->desc.ddpfPixelFormat.dwRGBBitCount = 16;
     *(Address*)Memory(stack[3]) = surfaceAddress;
@@ -2206,8 +2212,10 @@ HACKY_COM_END()
 HACKY_COM_BEGIN(IDirectDrawSurface4, 22)
   hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
   hacky_printf("a 0x%" PRIX32 "\n", stack[2]);
-
+  API(DirectDrawSurface4)* this = (API(DirectDrawSurface4)*)Memory(stack[1]);
   API(DDSURFACEDESC2)* desc = (API(DDSURFACEDESC2)*)Memory(stack[2]);
+  assert(desc->dwSize == this->desc.dwSize);
+  memcpy(desc, &this->desc, desc->dwSize);
   //FIXME?!  
 
   eax = 0; // FIXME: No idea what this expects to return..
@@ -2267,33 +2275,34 @@ HACKY_COM_BEGIN(IDirectDrawSurface4, 32)
   API(DirectDrawSurface4)* this = (API(DirectDrawSurface4)*)Memory(stack[1]);
 
   API(DDSURFACEDESC2)* desc = &this->desc;
+  
+  if ( this->texture != 0 ) {
+    API(Direct3DTexture2)* texture = (API(Direct3DTexture2)*)Memory(this->texture);
 
-  API(Direct3DTexture2)* texture = (API(Direct3DTexture2)*)Memory(this->texture);
-
-  GLint previousTexture = 0;
-  glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousTexture);
-  glBindTexture(GL_TEXTURE_2D, texture->handle);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  if (desc->ddpfPixelFormat.dwRGBBitCount == 32) {
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, desc->dwWidth, desc->dwHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, Memory(desc->lpSurface));
-  } else {
-    if (desc->ddpfPixelFormat.dwRGBAlphaBitMask == 0x8000) {
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, desc->dwWidth, desc->dwHeight, 0, GL_BGRA, GL_UNSIGNED_SHORT_1_5_5_5_REV, Memory(desc->lpSurface));
+    GLint previousTexture = 0;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousTexture);
+    glBindTexture(GL_TEXTURE_2D, texture->handle);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    if (desc->ddpfPixelFormat.dwRGBBitCount == 32) {
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, desc->dwWidth, desc->dwHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, Memory(desc->lpSurface));
     } else {
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, desc->dwWidth, desc->dwHeight, 0, GL_BGRA, GL_UNSIGNED_SHORT_4_4_4_4_REV, Memory(desc->lpSurface));
+      if (desc->ddpfPixelFormat.dwRGBAlphaBitMask == 0x8000) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, desc->dwWidth, desc->dwHeight, 0, GL_BGRA, GL_UNSIGNED_SHORT_1_5_5_5_REV, Memory(desc->lpSurface));
+      } else {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, desc->dwWidth, desc->dwHeight, 0, GL_BGRA, GL_UNSIGNED_SHORT_4_4_4_4_REV, Memory(desc->lpSurface));
+      }
     }
+    glBindTexture(GL_TEXTURE_2D, previousTexture);
   }
-  glBindTexture(GL_TEXTURE_2D, previousTexture);
-
-//Hack: part 2: don't free this to keep data in RAM. see lock for part 1
-#if 0
-  Free(desc->lpSurface);
-  desc->lpSurface = 0;
-#endif
-
+  //Hack: part 2: don't free this to keep data in RAM. see lock for part 1
+  #if 0
+    Free(desc->lpSurface);
+    desc->lpSurface = 0;
+  #endif
+  
   eax = 0; // FIXME: No idea what this expects to return..
   esp += 2 * 4;
 HACKY_COM_END()
@@ -2763,7 +2772,7 @@ HACKY_COM_BEGIN(IDirect3DDevice3, 22)
       break;
 
     case API(D3DRENDERSTATE_SHADEMODE):
-      assert(b == 2);
+      assert( (b == 1) || (b == 2) || (b == 3) );
       //FIXME
       break;
 
@@ -2846,7 +2855,7 @@ HACKY_COM_BEGIN(IDirect3DDevice3, 25)
       break;
     default:
       printf("Unknown matrix %d\n", a);
-      //FIXME: assert(false) once this runs faster
+      assert(false);//FIXME: assert(false) once this runs faster
       break;
   }
   printf("Matrix %d:\n", a);
@@ -3645,6 +3654,8 @@ HACKY_IMPORT_BEGIN(sprintf)
   hacky_printf("format 0x%" PRIX32 " (%s)\n", stack[2], Memory(stack[2]));
   if (strchr(Memory(stack[2]),'%') == NULL) {
     eax = sprintf(Memory(stack[1]), "%s", Memory(stack[2]));
+  } else if (!strcmp(Memory(stack[2]),"%d")) {
+    eax = sprintf(Memory(stack[1]), "%" PRId32, stack[3]);
   } else {
     assert(false);
   }
@@ -3722,6 +3733,7 @@ HACKY_IMPORT_BEGIN(_open)
   hacky_printf("filename 0x%" PRIX32 " (%s)\n", stack[1], Memory(stack[1]));
   hacky_printf("oflag 0x%" PRIX32 "\n", stack[2]);
   int flags = 0;
+  mode_t perm = 0;
   switch(stack[2] & 3) {
     case 0: flags = O_RDONLY;break;
     case 1: flags = O_WRONLY;break;
@@ -3730,6 +3742,8 @@ HACKY_IMPORT_BEGIN(_open)
   }
   if (stack[2] & 0x0100) {
     flags |= O_CREAT;
+    // FIXME: rwx everytime?
+    perm |= S_IRWXU | S_IRWXG | S_IRWXO ;
   }
   if (stack[2] & 0x0200) {
     flags |= O_TRUNC;
@@ -3739,9 +3753,13 @@ HACKY_IMPORT_BEGIN(_open)
   assert((stack[2] & ~0x8303) == 0);
   
   char* path = TranslatePath(Memory(stack[1]));
-  printf("translated to '%s'\n", path);
-  
-  int f = open(path,flags);
+  printf("translated to '%s'\nFlags: 0x%08x\nPermissions: 0x%08x\n", path, flags, perm);
+  int f;
+  if (flags & O_CREAT) {
+    f = open(path,flags,perm);
+  } else {
+    f = open(path,flags);
+  }
   if (f == -1) {
     printf("Failed to open (%s)\n", path);
     update_errno(errno);
@@ -3749,6 +3767,19 @@ HACKY_IMPORT_BEGIN(_open)
   } else {
     posix_fh[cur_posix_fh] = f;
     eax = cur_posix_fh++;
+  }
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(_close)
+  hacky_printf("filehandle 0x%" PRIX32 "\n", stack[1]);
+  int f = close(stack[1]);
+  if (f == -1) {
+    printf("Failed to close handle 0x%\n" PRIX32, stack[1]);
+    update_errno(errno);
+    eax = -1;
+  } else {
+    eax = 0;
   }
   esp += 0 * 4; // cdecl
 HACKY_IMPORT_END()
@@ -3912,6 +3943,75 @@ HACKY_IMPORT_BEGIN(_ftol)
   eip = ftol_address; //jump to _ftol
   //eax = 0; // fake success , like your dad
   //esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+typedef struct {
+    uint64_t m;
+    uint16_t e;
+  } float80;
+
+void Convert64To80(const double *value, float80 *outValue)
+{
+#if 0 
+  assert(false); // FIXME: untested for windows
+    __asm
+    {
+        mov rax,qword ptr [value] 
+        fld qword ptr [rax] 
+        mov rcx,qword ptr [outValue] 
+        fstp tbyte ptr [rcx] 
+    }
+#else
+  __asm__ __volatile__(
+    "mov %0,%%rax\n" 
+    "fldl (%%rax)\n"
+    "mov %1,%%rcx\n"
+    "fstpt (%%rcx)"
+    : 
+    : "r"(value), "r"(outValue)
+    : "rax", "rcx", "memory"
+  );
+#endif
+}
+
+void Convert80To64(const float80 *value, double *outValue)
+{
+#if 0 
+  assert(false); // FIXME: untested for windows
+    __asm
+    {
+        mov rax,qword ptr [value] 
+        fld tbyte ptr [rax] 
+        mov rcx,qword ptr [outValue] 
+        fstp qword ptr [rcx] 
+    }
+#else
+  __asm__ __volatile__(
+    "mov %0,%%rax\n" 
+    "fldt (%%rax)\n"
+    "mov %1,%%rcx\n"
+    "fstpl (%%rcx)"
+    : 
+    : "r"(value), "r"(outValue)
+    : "rax", "rcx", "memory"
+  );
+#endif
+}
+
+HACKY_IMPORT_BEGIN(_CIacos)  
+  //printf("\n"); // FIXME : print parameter
+  float80 f80;
+  double f64;
+  uint16_t fpsw;
+  uc_reg_read(uc, UC_X86_REG_FPSW, &fpsw);
+  unsigned int top = (fpsw >> 11) & 7;
+  unsigned int st0 = (top+0) % 8;
+  uc_reg_read(uc, UC_X86_REG_FP0+st0, &f80);
+  Convert80To64(&f80, &f64);
+  f64 = acos(f64);
+  Convert64To80(&f64, &f80);
+  uc_reg_write(uc, UC_X86_REG_FP0+st0, &f80);
+  esp += 0 * 4; // cdecl
 HACKY_IMPORT_END()
 
 //??3@YAXPAX@Z
@@ -4452,7 +4552,20 @@ void RunX86(Exe* exe) {
 }
 
 int main(int argc, char* argv[]) {
+  #if 0 
+    printf("-- testing shit\n");
+    float80 ft;
+    double in = 100.10012;
+    double out = 1337.42;
+    Convert64To80(&in, &ft);
+    ft.e ^= 0x8000;
+    Convert80To64(&ft, &out);
+    printf("is %f == %f ??", in, out);
+    assert(false);
+  #endif
   printf("-- Initializing\n");
+
+  
   InitializeEmulation();
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_EVENTS) < 0) {
 		  printf("Failed to initialize SDL2!\n");
