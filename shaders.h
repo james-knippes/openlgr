@@ -25,6 +25,8 @@ static const char* VertexShader1Texture =
 "void main() {\n"
 "  gl_Position = vec4(positionIn.xyz * clipScale + clipOffset, 1.0);\n"
 "  gl_Position /= positionIn.w;\n"
+"  gl_Position.xy /= vec2(640.0) ;\n"
+"  gl_Position.xy -= vec2(1.0) ;\n"
 "  gl_Position.y = -gl_Position.y;\n"
 "  diffuse = diffuseIn.bgra;\n"
 "  specular = specularIn.bgra;\n"

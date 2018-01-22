@@ -8,7 +8,7 @@
 extern uint32_t callId;
 
 static inline int hacky_printf(const char* fmt, ...) {
-#if 1
+#if 0
   va_list args;
   va_start(args, fmt);
   int ret = vprintf(fmt, args);
