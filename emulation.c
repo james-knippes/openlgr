@@ -518,11 +518,11 @@ void RunEmulation() {
       PrintContext(ctx);
       assert(false);
     }
-
+    #if 0 // hack for max perfomance
     printf("\n\n\n\n\nEmulation slice completed for thread %d (Count: %d) with %d at 0x%X\n", currentThread, threadCount, err, ctx->eip);
-
     PrintContext(ctx);
     printf("\n\n\n\n\n");
+    #endif
   }
 }
 

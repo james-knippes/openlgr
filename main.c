@@ -9,9 +9,10 @@
 #include <assert.h>
 #include <errno.h>
 
-// POSIX kram
+// POSIX/UNIX kram
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "common.h"
 #include "descriptor.h"
@@ -163,6 +164,8 @@ void update_errno(int value) {
     int32_t* errno_p = Memory(errno_addr);
     switch(value){
       case ENOENT: *errno_p = 2; break;
+      case EBADF: *errno_p = 9; break;
+      case EACCES: *errno_p = 13; break;
       default: printf("could not map errno %d\n", value); assert(false);break;
     }
 }
@@ -538,6 +541,15 @@ HACKY_IMPORT_BEGIN(VirtualAlloc)
   eax = Allocate(stack[2]);
   memset(Memory(eax), 0x00, stack[2]);
   esp += 4 * 4;
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(VirtualFree)
+  hacky_printf("lpAddress 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("dwSize 0x%" PRIX32 "\n", stack[2]);
+  hacky_printf("dwFreeType 0x%" PRIX32 "\n", stack[3]);
+  // FIXME: free momory pls
+  eax = 1; // Nonzero on success
+  esp += 3 * 4;
 HACKY_IMPORT_END()
 
 HACKY_IMPORT_BEGIN(TlsSetValue)
@@ -3631,8 +3643,11 @@ HACKY_IMPORT_END()
 HACKY_IMPORT_BEGIN(sprintf)
   hacky_printf("buffer 0x%" PRIX32 "\n", stack[1]);
   hacky_printf("format 0x%" PRIX32 " (%s)\n", stack[2], Memory(stack[2]));
-  assert(false);
-  eax = 0 ;// function_ptr to signal success
+  if (strchr(Memory(stack[2]),'%') == NULL) {
+    eax = sprintf(Memory(stack[1]), "%s", Memory(stack[2]));
+  } else {
+    assert(false);
+  }
   esp += 0 * 4; // cdecl
 HACKY_IMPORT_END()
 
@@ -3646,6 +3661,15 @@ HACKY_IMPORT_BEGIN(strchr)
   } else {
     eax = stack[1] + (r - s);
   }
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(strncat)
+  hacky_printf("strDest 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("strSource 0x%" PRIX32 " (%s)\n", stack[2], Memory(stack[2]));
+  hacky_printf("count %" PRIu32 "\n", stack[3]);
+  strncat(Memory(stack[1]),Memory(stack[2]),stack[3]);
+  eax = stack[1];
   esp += 0 * 4; // cdecl
 HACKY_IMPORT_END()
 
@@ -3671,6 +3695,18 @@ HACKY_IMPORT_END()
 HACKY_IMPORT_BEGIN(toupper)
   hacky_printf("c 0x%" PRIX32 " (%c)\n", stack[1], stack[1]);
   eax = toupper(stack[1]);
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(tolower)
+  hacky_printf("c 0x%" PRIX32 " (%c)\n", stack[1], stack[1]);
+  eax = tolower(stack[1]);
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(islower)
+  hacky_printf("c 0x%" PRIX32 " (%c)\n", stack[1], stack[1]);
+  eax = islower(stack[1]);
   esp += 0 * 4; // cdecl
 HACKY_IMPORT_END()
 
@@ -3746,6 +3782,7 @@ HACKY_IMPORT_BEGIN(_read)
   hacky_printf("buffer 0x%" PRIX32 "\n", stack[2]);
   hacky_printf("count 0x%" PRIX32 "\n", stack[3]);
   eax = read(posix_fh[stack[1]], Memory(stack[2]), stack[3]);
+  
   esp += 0 * 4; // cdecl
 HACKY_IMPORT_END()
 
@@ -3802,11 +3839,48 @@ HACKY_IMPORT_BEGIN(_access)
     eax = -1;
     // FIXME ERRNO
     update_errno(errno);
-  } else if (r == 0 ){
+  } else if(r == 0) {
     eax = 0;
   } else {
     assert(false);
   }
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(_write)
+  hacky_printf("fd 0x%" PRIX32 "\n", stack[1]);
+  hacky_printf("buffer 0x%" PRIX32 "\n", stack[2]);
+  hacky_printf("count 0x%" PRIX32 "\n", stack[3]);
+  int r = write(posix_fh[stack[1]], Memory(stack[2]), stack[3]);
+  
+  if(r == -1) {
+    update_errno(errno);
+    eax = -1;
+  } else if(r >= 0) {
+    eax = 0;
+  } else {
+    assert(false);
+  }
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(_commit)
+  hacky_printf("fd 0x%" PRIX32 "\n", stack[1]);
+  #if 0
+  //sync(); // FIXME: sync is annoying. repair syncfs or something3
+  eax = 0;
+  #else
+  int r = fdatasync(posix_fh[stack[1]]);
+  
+  if(r == -1) {
+    eax = -1;
+    update_errno(EBADF);
+  } else if(r == 0) {
+    eax = 0;
+  } else {
+    assert(false);
+  }
+  #endif
   esp += 0 * 4; // cdecl
 HACKY_IMPORT_END()
 
