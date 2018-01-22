@@ -318,15 +318,40 @@ uc_err uc_reg_read(uc_engine *uc, int regid, void *value) {
 
   struct kvm_regs regs;
   struct kvm_sregs sregs;
+  struct kvm_fpu fregs;
   int r = ioctl(u->vcpu_fd, KVM_GET_REGS, &regs);
   int s = ioctl(u->vcpu_fd, KVM_GET_SREGS, &sregs);
+  int f = ioctl(u->vcpu_fd, KVM_GET_FPU, &fregs);
 
-  if (regid == UC_X86_REG_EIP) {
+  if (regid == UC_X86_REG_GDTR) {
+//    assert(false);
+  } else if (regid == UC_X86_REG_EIP) {
     *(int*)value = regs.rip;
   } else if (regid == UC_X86_REG_ESP) {
     *(int*)value = regs.rsp;
+  } else if (regid == UC_X86_REG_EBP) {
+    *(int*)value = regs.rbp;
+  } else if (regid == UC_X86_REG_ESI) {
+    *(int*)value = regs.rsi;
+  } else if (regid == UC_X86_REG_EDI) {
+    *(int*)value = regs.rdi;
   } else if (regid == UC_X86_REG_EAX) {
     *(int*)value = regs.rax;
+  } else if (regid == UC_X86_REG_EBX) {
+    *(int*)value = regs.rbx;
+  } else if (regid == UC_X86_REG_ECX) {
+    *(int*)value = regs.rcx;
+  } else if (regid == UC_X86_REG_EDX) {
+    *(int*)value = regs.rdx;
+  } else if (regid == UC_X86_REG_FPSW) {
+    *(uint16_t*)value = fregs.fsw;
+  } else if (regid == UC_X86_REG_FPCW) {
+    *(uint16_t*)value = fregs.fcw;
+  } else if (regid == UC_X86_REG_FPTAG) {
+    *(uint8_t*)value = fregs.ftwx; //FIXME: This is actually the abridged version, should be extended to 16 bits
+  } else if ((regid >= UC_X86_REG_FP0) && (regid <= UC_X86_REG_FP7)) {
+    unsigned int top = (fregs.fsw >> 11) & 7;
+    memcpy(value, &fregs.fpr[((regid - UC_X86_REG_FP0) + 8 - top) % 8][0], 8+2);
   } else {
 //    assert(false);
   }
@@ -338,10 +363,12 @@ uc_err uc_reg_write(uc_engine *uc, int regid, const void *value) {
 
   assert(u->vcpu_fd != -1);
 
-   struct kvm_regs regs;
+  struct kvm_regs regs;
   struct kvm_sregs sregs;
+  struct kvm_fpu fregs;
   int r = ioctl(u->vcpu_fd, KVM_GET_REGS, &regs);
   int s = ioctl(u->vcpu_fd, KVM_GET_SREGS, &sregs);
+  int f = ioctl(u->vcpu_fd, KVM_GET_FPU, &fregs);
 
   if (regid == UC_X86_REG_GDTR) {
     const uc_x86_mmr* gdtr = value;
@@ -368,27 +395,14 @@ uc_err uc_reg_write(uc_engine *uc, int regid, const void *value) {
   } else if (regid == UC_X86_REG_EFLAGS) {
     //regs.rflags = *(int*)value;
   } else if (regid == UC_X86_REG_FPSW) {
-    //FIXME
+    fregs.fsw = *(uint16_t*)value;
   } else if (regid == UC_X86_REG_FPCW) {
-    //FIXME
+    fregs.fcw = *(uint16_t*)value;
   } else if (regid == UC_X86_REG_FPTAG) {
-    //FIXME
-  } else if (regid == UC_X86_REG_FP0) {
-    //FIXME
-  } else if (regid == UC_X86_REG_FP1) {
-    //FIXME
-  } else if (regid == UC_X86_REG_FP2) {
-    //FIXME
-  } else if (regid == UC_X86_REG_FP3) {
-    //FIXME
-  } else if (regid == UC_X86_REG_FP4) {
-    //FIXME
-  } else if (regid == UC_X86_REG_FP5) {
-    //FIXME
-  } else if (regid == UC_X86_REG_FP6) {
-    //FIXME
-  } else if (regid == UC_X86_REG_FP7) {
-    //FIXME
+    fregs.ftwx = *(uint8_t*)value; //FIXME: This is actually the abridged version, should be combined from 16 bits
+  } else if ((regid >= UC_X86_REG_FP0) && (regid <= UC_X86_REG_FP7)) {
+    unsigned int top = (fregs.fsw >> 11) & 7;
+    memcpy(&fregs.fpr[((regid - UC_X86_REG_FP0) + 8 - top) % 8][0], value, 8+2);
   } else if (regid == UC_X86_REG_CS) {
 
 #if 0
@@ -420,6 +434,7 @@ sregs.fs.limit = 0x1000;
 
   ioctl(u->vcpu_fd, KVM_SET_REGS, &regs);
   ioctl(u->vcpu_fd, KVM_SET_SREGS, &sregs);
+  ioctl(u->vcpu_fd, KVM_SET_FPU, &fregs);
 
   return 0;
 }
