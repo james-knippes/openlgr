@@ -436,6 +436,9 @@ unsigned int CreateEmulatedThread(uint32_t eip) {
   ctx->eip = eip;
   ctx->esp = esp;
   ctx->ebp = 0;
+  ctx->fpsw = 0x0000;
+  ctx->fpcw = 0x037F;
+  ctx->fptw = 0xFFFF;
   ctx->sleep = 0;
   ctx->terminated = false;
   PrintContext(ctx);
