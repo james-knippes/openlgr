@@ -2932,37 +2932,37 @@ HACKY_COM_END()
 // IDirect3DDevice3 -> STDMETHOD(SetTextureStageState)(THIS_ DWORD,D3DTEXTURESTAGESTATETYPE,DWORD) PURE; // 40
 HACKY_COM_BEGIN(IDirect3DDevice3, 40)
   hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
-  hacky_printf("a 0x%" PRIX32 "\n", stack[2]);
-  hacky_printf("b 0x%" PRIX32 "\n", stack[3]);
-  hacky_printf("c 0x%" PRIX32 "\n", stack[4]);
+  hacky_printf("dwStage 0x%" PRIX32 "\n", stack[2]);
+  hacky_printf("dwState 0x%" PRIX32 "\n", stack[3]);
+  hacky_printf("dwValue 0x%" PRIX32 "\n", stack[4]);
   assert((stack[2] == 0) || (stack[2] == 1)); // FIXME: WHY?!
   switch(stack[3]) {
-  case 1:
-    assert((stack[4] == 1) || (stack[4] == 2) || (stack[4] == 3) || (stack[4] == 4));
+  case API(D3DTSS_COLOROP):
+    assert((stack[4] == API(D3DTOP_DISABLE)) || (stack[4] == API(D3DTOP_SELECTARG1)) || (stack[4] == API(D3DTOP_SELECTARG2)) || (stack[4] == API(D3DTOP_MODULATE)));
     break;
-  case 2:
-    assert(stack[4] == 2);
+  case API(D3DTSS_COLORARG1):
+    assert(stack[4] == API(D3DTA_TEXTURE));
     break;
-  case 3:
-    assert(stack[4] == 0);
+  case API(D3DTSS_COLORARG2):
+    assert(stack[4] == API(D3DTA_DIFFUSE));
     break;
-  case 4:
-    assert((stack[4] == 2) || (stack[4] == 3) || (stack[4] == 4));
+  case API(D3DTSS_ALPHAOP):
+    assert((stack[4] == API(D3DTOP_SELECTARG1)) || (stack[4] == API(D3DTOP_SELECTARG2)) || (stack[4] == API(D3DTOP_MODULATE)));
     break;
-  case 5:
-    assert(stack[4] == 2);
+  case API(D3DTSS_ALPHAARG1):
+    assert(stack[4] == API(D3DTA_TEXTURE));
     break;
-  case 6:
-    assert(stack[4] == 0);
+  case API(D3DTSS_ALPHAARG2):
+    assert(stack[4] == API(D3DTA_DIFFUSE));
     break;
-  case 12:
-    assert((stack[4] == 1) || (stack[4] == 3));
+  case API(D3DTSS_ADDRESS):
+    assert((stack[4] == API(D3DTADDRESS_WRAP)) || (stack[4] == API(D3DTADDRESS_CLAMP)));
     break;
-  case 16:
-    assert((stack[4] == 1) || (stack[4] == 2));
+  case API(D3DTSS_MAGFILTER):
+    assert((stack[4] == API(D3DTFG_POINT)) || (stack[4] == API(D3DTFG_LINEAR)));
     break;
-  case 17:
-    assert((stack[4] == 1) || (stack[4] == 2));
+  case API(D3DTSS_MINFILTER):
+    assert((stack[4] == API(D3DTFN_POINT)) || (stack[4] == API(D3DTFN_LINEAR)));
     break;
   default:
     assert(false);
@@ -3358,7 +3358,25 @@ HACKY_COM_END()
 HACKY_COM_BEGIN(IDirectInputDeviceA, 15)
   hacky_printf("p 0x%" PRIX32 "\n", stack[1]);
   hacky_printf("a 0x%" PRIX32 "\n", stack[2]);
-  //FIXME: Fix returned device info
+  
+  Address ddiAddress = stack[2];
+  API(DIDEVICEINSTANCEA)* ddi = Memory(ddiAddress);
+  assert(ddi->dwSize == sizeof(API(DIDEVICEINSTANCEA)));
+  memset(ddi, 0x00, sizeof(API(DIDEVICEINSTANCEA)));
+  ddi->dwSize = sizeof(API(DIDEVICEINSTANCEA));
+  //FIXME:    GUID guidInstance;
+  //FIXME:    GUID guidProduct;
+  enum {
+    API(DIDEVTYPE_KEYBOARD) = 3
+  };
+  // FIXME: Assumes requested device is akeyboard
+  ddi->dwDevType = API(DIDEVTYPE_KEYBOARD); // or something
+  sprintf(ddi->tszInstanceName, "OpenSWE1R FUCKED Keyboard? 1"); // TCHAR tszInstanceName[MAX_PATH];
+  sprintf(ddi->tszProductName, "OpenSWE1R FUCKED Keyboard"); // TCHAR tszProductName[MAX_PATH];
+  //FIXME:    GUID guidFFDriver;
+  ddi->wUsagePage = 0; //FIXME look at usb spec?
+  ddi->wUsage = 0; //FIXME look at usb spec?
+    
   eax = 0; // HRESULT -> non-negative means success
   esp += 2 * 4;
 HACKY_COM_END()
@@ -3648,7 +3666,7 @@ HACKY_IMPORT_END()
 
 HACKY_IMPORT_BEGIN(strncpy)
   hacky_printf("strDest 0x%" PRIX32 "\n", stack[1]);
-  hacky_printf("strSource 0x%" PRIX32 " (%s)\n", stack[2], Memory(stack[2]));
+  hacky_printf("strSource 0x%" PRIX32 " (%.*s)\n", stack[2], stack[3], Memory(stack[2]));
   hacky_printf("count %" PRIu32 "\n", stack[3]);
   strncpy(Memory(stack[1]),Memory(stack[2]),stack[3]);
   eax = stack[1]; // 
@@ -3709,8 +3727,8 @@ HACKY_IMPORT_BEGIN(strchr)
 HACKY_IMPORT_END()
 
 HACKY_IMPORT_BEGIN(strncat)
-  hacky_printf("strDest 0x%" PRIX32 "\n", stack[1]);
-  hacky_printf("strSource 0x%" PRIX32 " (%s)\n", stack[2], Memory(stack[2]));
+  hacky_printf("strDest 0x%" PRIX32 " (%.*s)\n", stack[1], stack[3], Memory(stack[1]));
+  hacky_printf("strSource 0x%" PRIX32 " (%.*s)\n", stack[2], stack[3]-strlen(Memory(stack[1])), Memory(stack[2]));
   hacky_printf("count %" PRIu32 "\n", stack[3]);
   strncat(Memory(stack[1]),Memory(stack[2]),stack[3]);
   eax = stack[1];
@@ -3737,19 +3755,22 @@ HACKY_IMPORT_BEGIN(strrchr)
 HACKY_IMPORT_END()
 
 HACKY_IMPORT_BEGIN(toupper)
-  hacky_printf("c 0x%" PRIX32 " (%c)\n", stack[1], stack[1]);
+  char c = stack[1];
+  hacky_printf("c 0x%" PRIX32 " (%.1s)\n", stack[1], &c);
   eax = toupper(stack[1]);
   esp += 0 * 4; // cdecl
 HACKY_IMPORT_END()
 
 HACKY_IMPORT_BEGIN(tolower)
-  hacky_printf("c 0x%" PRIX32 " (%c)\n", stack[1], stack[1]);
+  char c = stack[1];
+  hacky_printf("c 0x%" PRIX32 " (%.1s)\n", stack[1], &c);
   eax = tolower(stack[1]);
   esp += 0 * 4; // cdecl
 HACKY_IMPORT_END()
 
 HACKY_IMPORT_BEGIN(islower)
-  hacky_printf("c 0x%" PRIX32 " (%c)\n", stack[1], stack[1]);
+  char c = stack[1];
+  hacky_printf("c 0x%" PRIX32 " (%.1s)\n", stack[1], &c);
   eax = islower(stack[1]);
   esp += 0 * 4; // cdecl
 HACKY_IMPORT_END()
@@ -4031,8 +4052,7 @@ void Convert80To64(const float80 *value, double *outValue)
 #endif
 }
 
-HACKY_IMPORT_BEGIN(_CIacos)  
-  //printf("\n"); // FIXME : print parameter
+double popfloat(uc_engine* uc) {
   float80 f80;
   double f64;
   uint16_t fpsw;
@@ -4040,10 +4060,50 @@ HACKY_IMPORT_BEGIN(_CIacos)
   unsigned int top = (fpsw >> 11) & 7;
   unsigned int st0 = (top+0) % 8;
   uc_reg_read(uc, UC_X86_REG_FP0+st0, &f80);
-  Convert80To64(&f80, &f64);
-  f64 = acos(f64);
-  Convert64To80(&f64, &f80);
+  Convert80To64(&f80, &f64); 
+  // FIXME: modify top and tag
+  return f64;
+}
+
+void pushfloat(uc_engine* uc, double f) {
+  float80 f80;
+  uint16_t fpsw;
+  uc_reg_read(uc, UC_X86_REG_FPSW, &fpsw);
+  unsigned int top = (fpsw >> 11) & 7;
+  unsigned int st0 = (top+0) % 8;
+  Convert64To80(&f, &f80);
   uc_reg_write(uc, UC_X86_REG_FP0+st0, &f80);
+  // FIXME: modify top and tag
+  return;
+}
+
+HACKY_IMPORT_BEGIN(_CIacos)  
+  //printf("\n"); // FIXME : print parameter
+  double f64 = popfloat(uc);
+  hacky_printf("value %f\n", f64);
+  f64 = acos(f64);
+  hacky_printf(">> value %f\n", f64);
+  pushfloat(uc, f64);
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(floor)  
+  // FIXME: confirm this is working
+  double f64 = popfloat(uc);
+  hacky_printf("value %f\n", f64);
+  f64 = floor(f64);
+  hacky_printf(">> value %f\n", f64);
+  pushfloat(uc, f64);
+  esp += 0 * 4; // cdecl
+HACKY_IMPORT_END()
+
+HACKY_IMPORT_BEGIN(ceil)  
+  // FIXME: confirm this is working
+  double f64 = popfloat(uc);
+  hacky_printf("value %f\n", f64);
+  f64 = ceil(f64);
+  hacky_printf(">> value %f\n", f64);
+  pushfloat(uc, f64);
   esp += 0 * 4; // cdecl
 HACKY_IMPORT_END()
 
@@ -4126,8 +4186,10 @@ HACKY_IMPORT_END()
 
 
 HACKY_IMPORT_BEGIN(strncmp)
-  hacky_printf("string1 0x%" PRIX32 " (%s)\n", stack[1],Memory(stack[1]));
-  hacky_printf("string2 0x%" PRIX32 " (%s)\n", stack[2],Memory(stack[2]));
+  //hacky_printf("string1 0x%" PRIX32 " (%.*s)\n", stack[1],stack[3],Memory(stack[1]));
+  hacky_printf("string1 0x%" PRIX32 "\n", stack[1]);
+  //hacky_printf("string2 0x%" PRIX32 " (%.*s)\n", stack[2],stack[3],Memory(stack[2]));
+  hacky_printf("string2 0x%" PRIX32 "\n", stack[2]);
   hacky_printf("count %" PRIu32 "\n", stack[3]);
   eax = (int32_t)strncmp(Memory(stack[1]),Memory(stack[2]),stack[3]); //  INT diff
   esp += 0 * 4;

@@ -329,4 +329,79 @@ typedef enum {
   API(D3DBLEND_INVSRCCOLOR2)     = 17
 } API(D3DBLEND);
 
+typedef enum {
+  API(D3DTSS_COLOROP)        =  1, /* D3DTEXTUREOP - per-stage blending controls for color channels */
+  API(D3DTSS_COLORARG1)      =  2, /* D3DTA_* (texture arg) */
+  API(D3DTSS_COLORARG2)      =  3, /* D3DTA_* (texture arg) */
+  API(D3DTSS_ALPHAOP)        =  4, /* D3DTEXTUREOP - per-stage blending controls for alpha channel */
+  API(D3DTSS_ALPHAARG1)      =  5, /* D3DTA_* (texture arg) */
+  API(D3DTSS_ALPHAARG2)      =  6, /* D3DTA_* (texture arg) */
+  API(D3DTSS_BUMPENVMAT00)   =  7, /* D3DVALUE (bump mapping matrix) */
+  API(D3DTSS_BUMPENVMAT01)   =  8, /* D3DVALUE (bump mapping matrix) */
+  API(D3DTSS_BUMPENVMAT10)   =  9, /* D3DVALUE (bump mapping matrix) */
+  API(D3DTSS_BUMPENVMAT11)   = 10, /* D3DVALUE (bump mapping matrix) */
+  API(D3DTSS_TEXCOORDINDEX)  = 11, /* identifies which set of texture coordinates index this texture */
+  API(D3DTSS_ADDRESS)        = 12, /* D3DTEXTUREADDRESS for both coordinates */
+  API(D3DTSS_ADDRESSU)       = 13, /* D3DTEXTUREADDRESS for U coordinate */
+  API(D3DTSS_ADDRESSV)       = 14, /* D3DTEXTUREADDRESS for V coordinate */
+  API(D3DTSS_BORDERCOLOR)    = 15, /* D3DCOLOR */
+  API(D3DTSS_MAGFILTER)      = 16, /* D3DTEXTUREMAGFILTER filter to use for magnification */
+  API(D3DTSS_MINFILTER)      = 17, /* D3DTEXTUREMINFILTER filter to use for minification */
+  API(D3DTSS_MIPFILTER)      = 18, /* D3DTEXTUREMIPFILTER filter to use between mipmaps during minification */
+  API(D3DTSS_MIPMAPLODBIAS)  = 19, /* D3DVALUE Mipmap LOD bias */
+  API(D3DTSS_MAXMIPLEVEL)    = 20, /* DWORD 0..(n-1) LOD index of largest map to use (0 == largest) */
+  API(D3DTSS_MAXANISOTROPY)  = 21, /* DWORD maximum anisotropy */
+  API(D3DTSS_BUMPENVLSCALE)  = 22, /* D3DVALUE scale for bump map luminance */
+  API(D3DTSS_BUMPENVLOFFSET) = 23, /* D3DVALUE offset for bump map luminance */
+  API(D3DTSS_FORCE_DWORD)   = 0x7fffffff /* force 32-bit size enum */
+} API(D3DTEXTURESTAGESTATETYPE);
+
+typedef enum _D3DTEXTUREOP
+{ //Only a subset
+// Control
+    API(D3DTOP_DISABLE)    = 1,      // disables stage
+    API(D3DTOP_SELECTARG1) = 2,      // the default
+    API(D3DTOP_SELECTARG2) = 3,
+
+// Modulate
+    API(D3DTOP_MODULATE)   = 4,      // multiply args together
+    API(D3DTOP_MODULATE2X) = 5,      // multiply and  1 bit
+    API(D3DTOP_MODULATE4X) = 6,      // multiply and  2 bits
+} API(D3DTEXTUREOP);
+
+enum {
+  API(D3DTA_SELECTMASK)       = 0x0000000f,  // mask for arg selector
+  API(D3DTA_DIFFUSE)          = 0x00000000,  // select diffuse color
+  API(D3DTA_CURRENT)          = 0x00000001,  // select result of previous stage
+  API(D3DTA_TEXTURE)          = 0x00000002,  // select texture color
+  API(D3DTA_TFACTOR)          = 0x00000003,  // select RENDERSTATE_TEXTUREFACTOR
+
+  API(D3DTA_COMPLEMENT)       = 0x00000010,  // take 1.0 - x
+  API(D3DTA_ALPHAREPLICATE)   = 0x00000020,  // replicate alpha to color components
+};
+
+typedef enum {
+    API(D3DTADDRESS_WRAP)           = 1,
+    API(D3DTADDRESS_MIRROR)         = 2,
+    API(D3DTADDRESS_CLAMP)          = 3,
+    API(D3DTADDRESS_BORDER)         = 4,
+    API(D3DTADDRESS_FORCE_DWORD)    = 0x7fffffff, /* force 32-bit size enum */
+} API(D3DTEXTUREADDRESS);
+
+typedef enum {
+    API(D3DTFG_POINT)        = 1,    // nearest
+    API(D3DTFG_LINEAR)       = 2,    // linear interpolation
+    API(D3DTFG_FLATCUBIC)    = 3,    // cubic
+    API(D3DTFG_GAUSSIANCUBIC) = 4,   // different cubic kernel
+    API(D3DTFG_ANISOTROPIC)  = 5,    //
+    API(D3DTFG_FORCE_DWORD)  = 0x7fffffff,   // force 32-bit size enum
+} API(D3DTEXTUREMAGFILTER);
+
+typedef enum {
+    API(D3DTFN_POINT)        = 1,    // nearest
+    API(D3DTFN_LINEAR)       = 2,    // linear interpolation
+    API(D3DTFN_ANISOTROPIC)  = 3,    //
+    API(D3DTFN_FORCE_DWORD)  = 0x7fffffff,   // force 32-bit size enum
+} API(D3DTEXTUREMINFILTER);
+
 #endif
