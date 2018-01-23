@@ -2935,6 +2935,39 @@ HACKY_COM_BEGIN(IDirect3DDevice3, 40)
   hacky_printf("a 0x%" PRIX32 "\n", stack[2]);
   hacky_printf("b 0x%" PRIX32 "\n", stack[3]);
   hacky_printf("c 0x%" PRIX32 "\n", stack[4]);
+  assert((stack[2] == 0) || (stack[2] == 1)); // FIXME: WHY?!
+  switch(stack[3]) {
+  case 1:
+    assert((stack[4] == 1) || (stack[4] == 2) || (stack[4] == 3) || (stack[4] == 4));
+    break;
+  case 2:
+    assert(stack[4] == 2);
+    break;
+  case 3:
+    assert(stack[4] == 0);
+    break;
+  case 4:
+    assert((stack[4] == 2) || (stack[4] == 3) || (stack[4] == 4));
+    break;
+  case 5:
+    assert(stack[4] == 2);
+    break;
+  case 6:
+    assert(stack[4] == 0);
+    break;
+  case 12:
+    assert((stack[4] == 1) || (stack[4] == 3));
+    break;
+  case 16:
+    assert((stack[4] == 1) || (stack[4] == 2));
+    break;
+  case 17:
+    assert((stack[4] == 1) || (stack[4] == 2));
+    break;
+  default:
+    assert(false);
+    break;
+  }
   eax = 0; // FIXME: No idea what this expects to return..
   esp += 4 * 4;
 HACKY_COM_END()
