@@ -1,10 +1,10 @@
 ### OpenLGR
-*An Open-Source port(/loader) of the 1999 Game ["Lego Racers"](https://en.wikipedia.org/wiki/Lego_Racers_(video_game))*
+*An enhancement/loader of the 1999 Game ["Lego Racers"](https://en.wikipedia.org/wiki/Lego_Racers_(video_game))*
 
 It is based on [OpenSWE1R](https://github.com/OpenSWE1R/openswe1r) and developed with the help of [JayFoxRox](https://github.com/JayFoxRox)
 
 The state of the project is not as impressive as it's origins.
-![Screenshot of OpenLGR running on Linux](https://krul.finf.uni-hannover.de/~janknittel/images/Screenshot%20from%202017-12-19%2017-33-50.png)
+![Screenshot of OpenLGR running on Linux](https://krul.finf.uni-hannover.de/~janknittel/images/ingame_hype.png)
 
 The Rest of the README is copied from [OpenSWE1R](https://github.com/OpenSWE1R/openswe1r) and is only pratially applicable.
 
