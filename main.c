@@ -2763,7 +2763,7 @@ HACKY_COM_BEGIN(IDirect3DDevice3, 22)
       //FIXME
       glSet(GL_DEPTH_TEST, b);
       // Hack: While Z is not correct, we can't turn on z-test
-      glDisable(GL_DEPTH_TEST);
+      //glDisable(GL_DEPTH_TEST);
       break;
 
     case API(D3DRENDERSTATE_FILLMODE):
@@ -3055,7 +3055,7 @@ HACKY_COM_BEGIN(IDirect3DViewport3, 12)
 
     unsigned int flags = stack[4];
     uint32_t clearColor = 0xffff00ff;
-    float zValue = (rand() & 255) / 255.0;
+    float zValue = 1.0f; // (rand() & 255) / 255.0;
 
     float a = (clearColor >> 24) / 255.0f;
     float r = ((clearColor >> 24) & 0xFF) / 255.0f;
