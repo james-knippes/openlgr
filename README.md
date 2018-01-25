@@ -6,9 +6,9 @@ It is based on [OpenSWE1R](https://github.com/OpenSWE1R/openswe1r) and developed
 The state of the project is not as impressive as it's origins.
 ![Screenshot of OpenLGR running on Linux](https://krul.finf.uni-hannover.de/~janknittel/images/ingame_hype.png)
 
-** The Rest of the README is copied from [OpenSWE1R](https://github.com/OpenSWE1R/openswe1r) and is only pratially applicable. **
+**The Rest of the README is copied from [OpenSWE1R](https://github.com/OpenSWE1R/openswe1r) and is only pratially applicable.**
 
-** The goal of this project is not to replace the whole game with an open source implementation, but provide a plattform independent enviroment to run, enchance and modify the game. Original game binary&data is still needed.**
+**The goal of this project is not to replace the whole game with an open source implementation, but provide a plattform independent enviroment to run, enchance and modify the game. Original game binary&data is still needed.**
 
 ---
 
