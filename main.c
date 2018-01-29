@@ -4739,21 +4739,20 @@ int main(int argc, char* argv[]) {
   MapExe(exe);
 
   RelocateExe(exe);
-
-  clearEax = Allocate(3);
-  {
-    uint8_t* p = Memory(clearEax);
-    *p++ = 0x31; *p++ = 0xC0; // xor eax, eax
-    *p++ = 0xC3;              // ret
-  }
   
-  setEax = Allocate(2);
-  {
-    uint8_t* p = Memory(setEax);
-    //*p++ = 0xf4; // pop eax
-    *p++ = 0x58; // pop eax
-    *p++ = 0xC3; // ret
-  }
+  uint8_t clearEax_h[] = {
+    0x31, 0xC0, // xor eax, eax
+    0xC3,       // ret
+  };
+  clearEax = Allocate(sizeof(clearEax_h));
+  memcpy(Memory(clearEax),clearEax_h,sizeof(clearEax_h));
+  
+  uint8_t setEax_h[] = {
+    0x58,       // pop eax
+    0xC3,       // ret
+  };
+  setEax = Allocate(sizeof(setEax_h));
+  memcpy(Memory(setEax),setEax_h,sizeof(setEax_h));
   
   errno_addr = Allocate(4);
   
@@ -4763,82 +4762,82 @@ int main(int argc, char* argv[]) {
   // algorithm (namely insertion sort) and plug it into the guest.
   // Beware the O(n^2) and unreadable mess of assembly with rough comments.
   // qsort_address = Allocate(109);
-  qsort_address = Allocate(120); // counted 111 bytes the second time. so better allocate to much
-  {
-    uint8_t* p = Memory(qsort_address);
+  uint8_t qsort_h[] = {
     // 0x0 - Retrieve arguments, put addr of last input-byte into ebx:
-    *p++ = 0x55;                                        // push   ebp
-    *p++ = 0x57;                                        // push   edi
-    *p++ = 0x56;                                        // push   esi
-    *p++ = 0x53;                                        // push   ebx
-    *p++ = 0x83; *p++ = 0xec; *p++ = 0x0c;              // sub    esp,0xc
-    *p++ = 0x8b; *p++ = 0x5c; *p++ = 0x24; *p++ = 0x24; // mov    ebx,DWORD PTR [esp+0x24]
-    *p++ = 0x8b; *p++ = 0x7c; *p++ = 0x24; *p++ = 0x28; // mov    edi,DWORD PTR [esp+0x28]
-    *p++ = 0x83; *p++ = 0xfb; *p++ = 0x01;              // cmp    ebx,0x1
-    *p++ = 0x76; *p++ = 0x51;                           // jbe    0x65
-    *p++ = 0x85; *p++ = 0xff;                           // test   edi,edi
-    *p++ = 0x74; *p++ = 0x4d;                           // je     0x65
-    *p++ = 0x4b;                                        // dec    ebx
-    *p++ = 0x0f; *p++ = 0xaf; *p++ = 0xdf;              // imul   ebx,edi
-    *p++ = 0x03; *p++ = 0x5c; *p++ = 0x24; *p++ = 0x20; // add    ebx,DWORD PTR [esp+0x20]
+    0x55,                          // push   ebp
+    0x57,                          // push   edi
+    0x56,                          // push   esi
+    0x53,                          // push   ebx
+    0x83, 0xec, 0x0c,              // sub    esp,0xc
+    0x8b, 0x5c, 0x24, 0x24,        // mov    ebx,DWORD PTR [esp+0x24]
+    0x8b, 0x7c, 0x24, 0x28,        // mov    edi,DWORD PTR [esp+0x28]
+    0x83, 0xfb, 0x01,              // cmp    ebx,0x1
+    0x76, 0x51,                    // jbe    0x65
+    0x85, 0xff,                    // test   edi,edi
+    0x74, 0x4d,                    // je     0x65
+    0x4b,                          // dec    ebx
+    0x0f, 0xaf, 0xdf,              // imul   ebx,edi
+    0x03, 0x5c, 0x24, 0x20,        // add    ebx,DWORD PTR [esp+0x20]
     // 0x20 - Check if there are elements left and take address to one:
-    *p++ = 0x39; *p++ = 0x5c; *p++ = 0x24; *p++ = 0x20; // cmp    DWORD PTR [esp+0x20],ebx
-    *p++ = 0x73; *p++ = 0x3f;                           // jae    0x65
-    *p++ = 0x8b; *p++ = 0x74; *p++ = 0x24; *p++ = 0x20; // mov    esi,DWORD PTR [esp+0x20]
-    *p++ = 0x8b; *p++ = 0x6c; *p++ = 0x24; *p++ = 0x20; // mov    ebp,DWORD PTR [esp+0x20]
-    *p++ = 0x01; *p++ = 0xfe;                           // add    esi,edi
+    0x39, 0x5c, 0x24, 0x20,        // cmp    DWORD PTR [esp+0x20],ebx
+    0x73, 0x3f,                    // jae    0x65
+    0x8b, 0x74, 0x24, 0x20,        // mov    esi,DWORD PTR [esp+0x20]
+    0x8b, 0x6c, 0x24, 0x20,        // mov    ebp,DWORD PTR [esp+0x20]
+    0x01, 0xfe,                    // add    esi,edi
     // 0x30 - Compare element to following elements and remember which to swap.
-    *p++ = 0x39; *p++ = 0xde;                           // cmp    esi,ebx
-    *p++ = 0x77; *p++ = 0x14;                           // ja     0x48
-    *p++ = 0x50;                                        // push   eax
-    *p++ = 0x50;                                        // push   eax
-    *p++ = 0x55;                                        // push   ebp
-    *p++ = 0x56;                                        // push   esi
-    *p++ = 0xff; *p++ = 0x54; *p++ = 0x24; *p++ = 0x3c; // call   DWORD PTR [esp+0x3c]
-    *p++ = 0x83; *p++ = 0xc4; *p++ = 0x10;              // add    esp,0x10
-    *p++ = 0x85; *p++ = 0xc0;                           // test   eax,eax
-    *p++ = 0x0f; *p++ = 0x4f; *p++ = 0xee;              // cmovg  ebp,esi
-    *p++ = 0x01; *p++ = 0xfe;                           // add    esi,edi
-    *p++ = 0xeb; *p++ = 0xe8;                           // jmp    0x30
+    0x39, 0xde,                    // cmp    esi,ebx
+    0x77, 0x14,                    // ja     0x48
+    0x50,                          // push   eax
+    0x50,                          // push   eax
+    0x55,                          // push   ebp
+    0x56,                          // push   esi
+    0xff, 0x54, 0x24, 0x3c,        // call   DWORD PTR [esp+0x3c]
+    0x83, 0xc4, 0x10,              // add    esp,0x10
+    0x85, 0xc0,                    // test   eax,eax
+    0x0f, 0x4f, 0xee,              // cmovg  ebp,esi
+    0x01, 0xfe,                    // add    esi,edi
+    0xeb, 0xe8,                    // jmp    0x30
     // 0x48 - Swap elements pointed to by ebp and ebx, unless ebp == ebx:
-    *p++ = 0x31; *p++ = 0xc0;                           // xor    eax,eax
-    *p++ = 0x39; *p++ = 0xdd;                           // cmp    ebp,ebx
+    0x31, 0xc0,                    // xor    eax,eax
+    0x39, 0xdd,                    // cmp    ebp,ebx
     // 0x4c - Check if we have already swapped all bytes:
-    *p++ = 0x75; *p++ = 0x04;                           // jne    0x52
-    *p++ = 0x29; *p++ = 0xfb;                           // sub    ebx,edi
-    *p++ = 0xeb; *p++ = 0xce;                           // jmp    0x20
+    0x75, 0x04,                    // jne    0x52
+    0x29, 0xfb,                    // sub    ebx,edi
+    0xeb, 0xce,                    // jmp    0x20
     // 0x52 - Swap a byte of two elements, eax is offset in element:
-    *p++ = 0x8a; *p++ = 0x4c; *p++ = 0x05; *p++ = 0x00; // mov    cl,BYTE PTR [ebp+eax*1+0x0]
-    *p++ = 0x8a; *p++ = 0x14; *p++ = 0x03;              // mov    dl,BYTE PTR [ebx+eax*1]
-    *p++ = 0x88; *p++ = 0x54; *p++ = 0x05; *p++ = 0x00; // mov    BYTE PTR [ebp+eax*1+0x0],dl
-    *p++ = 0x88; *p++ = 0x0c; *p++ = 0x03;              // mov    BYTE PTR [ebx+eax*1],cl
-    *p++ = 0x40;                                        // inc    eax
-    *p++ = 0x39; *p++ = 0xc7;                           // cmp    edi,eax
-    *p++ = 0xeb; *p++ = 0xe7;                           // jmp    0x4c
+    0x8a, 0x4c, 0x05, 0x00,        // mov    cl,BYTE PTR [ebp+eax*1+0x0]
+    0x8a, 0x14, 0x03,              // mov    dl,BYTE PTR [ebx+eax*1]
+    0x88, 0x54, 0x05, 0x00,        // mov    BYTE PTR [ebp+eax*1+0x0],dl
+    0x88, 0x0c, 0x03,              // mov    BYTE PTR [ebx+eax*1],cl
+    0x40,                          // inc    eax
+    0x39, 0xc7,                    // cmp    edi,eax
+    0xeb, 0xe7,                    // jmp    0x4c
     // 0x65 - Cleanup and return:
-    *p++ = 0x83; *p++ = 0xc4; *p++ = 0x0c;              // add    esp,0xc
-    *p++ = 0x5b;                                        // pop    ebx
-    *p++ = 0x5e;                                        // pop    esi
-    *p++ = 0x5f;                                        // pop    edi
-    *p++ = 0x5d;                                        // pop    ebp
-    *p++ = 0xc3;                                        // ret    
-  }
+    0x83, 0xc4, 0x0c,              // add    esp,0xc
+    0x5b,                          // pop    ebx
+    0x5e,                          // pop    esi
+    0x5f,                          // pop    edi
+    0x5d,                          // pop    ebp
+    0xc3,                          // ret    
+  };
+  qsort_address = Allocate(sizeof(qsort_h));
+  memcpy(Memory(qsort_address),qsort_h,sizeof(qsort_h));
   
   // use ftol from https://github.com/idunham/pcc-libs/blob/master/libpcc/_ftol.asm
-  ftol_address = Allocate(39);
-  {
-    uint8_t* p = Memory(ftol_address);
-    *p++ = 0xd9; *p++ = 0x7c; *p++ = 0x24; *p++ = 0xfe;              // fnstcw WORD PTR [esp-0x2]
-    *p++ = 0x66; *p++ = 0x8b; *p++ = 0x44; *p++ = 0x24; *p++ = 0xfe; // mov    ax,WORD PTR [esp-0x2]
-    *p++ = 0x66; *p++ = 0x0d; *p++ = 0x00; *p++ = 0x0c;              // or     ax,0xc00
-    *p++ = 0x66; *p++ = 0x89; *p++ = 0x44; *p++ = 0x24; *p++ = 0xfc; // mov    WORD PTR [esp-0x4],ax
-    *p++ = 0xd9; *p++ = 0x6c; *p++ = 0x24; *p++ = 0xfc;              // fldcw  WORD PTR [esp-0x4]
-    *p++ = 0xdf; *p++ = 0x7c; *p++ = 0x24; *p++ = 0xf4;              // fistp  QWORD PTR [esp-0xc]
-    *p++ = 0xd9; *p++ = 0x6c; *p++ = 0x24; *p++ = 0xfe;              // fldcw  WORD PTR [esp-0x2]
-    *p++ = 0x8b; *p++ = 0x44; *p++ = 0x24; *p++ = 0xf4;              // mov    eax,DWORD PTR [esp-0xc]
-    *p++ = 0x8b; *p++ = 0x54; *p++ = 0x24; *p++ = 0xf8;              // mov    edx,DWORD PTR [esp-0x8]
-    *p++ = 0xc3;                                                     // ret 
-  }
+  uint8_t ftol_h[] = {
+    0xd9, 0x7c, 0x24, 0xfe,              // fnstcw WORD PTR [esp-0x2]
+    0x66, 0x8b, 0x44, 0x24, 0xfe,        // mov    ax,WORD PTR [esp-0x2]
+    0x66, 0x0d, 0x00, 0x0c,              // or     ax,0xc00
+    0x66, 0x89, 0x44, 0x24, 0xfc,        // mov    WORD PTR [esp-0x4],ax
+    0xd9, 0x6c, 0x24, 0xfc,              // fldcw  WORD PTR [esp-0x4]
+    0xdf, 0x7c, 0x24, 0xf4,              // fistp  QWORD PTR [esp-0xc]
+    0xd9, 0x6c, 0x24, 0xfe,              // fldcw  WORD PTR [esp-0x2]
+    0x8b, 0x44, 0x24, 0xf4,              // mov    eax,DWORD PTR [esp-0xc]
+    0x8b, 0x54, 0x24, 0xf8,              // mov    edx,DWORD PTR [esp-0x8]
+    0xc3,                                // ret 
+  };
+  ftol_address = Allocate(sizeof(ftol_h));
+  memcpy(Memory(ftol_address),ftol_h,sizeof(ftol_h));
 
 // 0x90 = nop (used to disable code)
 // 0xC3 = ret (used to skip function)
